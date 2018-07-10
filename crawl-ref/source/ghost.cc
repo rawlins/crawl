@@ -615,6 +615,24 @@ void ghost_demon::init_spectral_weapon(const item_def& weapon, int power)
     max_hp = 10 + div_rand_round(power, 3);
 }
 
+void ghost_demon::init_monster_part(const monster &head)
+{
+    // TODO: fully handle if head has a ghost_demon?
+    colour = head.colour;
+    flies = mons_class_flag(mons_base_type(head), M_FLIES)
+           || mons_class_flag(head.type, M_FLIES)
+           || head.has_facet(BF_BAT);
+    xl = head.get_hit_dice(); // TODO: revisit? this includes draining.
+    max_hp = head.max_hit_points;
+    speed = head.speed;
+    ev = head.base_evasion();
+    ac = head.base_armour_class();
+    damage = 0; // TODO: not very general?
+
+    // TODO: sinv, brand, attack type/flavour, resists
+
+}
+
 // Used when creating ghosts: goes through and finds spells for the
 // ghost to cast. Death is a traumatic experience, so ghosts only
 // remember a few spells.

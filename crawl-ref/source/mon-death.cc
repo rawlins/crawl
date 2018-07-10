@@ -47,6 +47,7 @@
 #include "message.h"
 #include "mon-abil.h"
 #include "mon-behv.h"
+#include "mon-big.h"
 #include "mon-gear.h"
 #include "mon-place.h"
 #include "mon-poly.h"
@@ -632,6 +633,8 @@ void record_monster_defeat(const monster* mons, killer_type killer)
     if (killer == KILL_RESET || killer == KILL_DISMISSED)
         return;
     if (mons->has_ench(ENCH_FAKE_ABJURATION) || mons->is_summoned())
+        return;
+    if (mons->type == MONS_PART) // TODO: revisit
         return;
     if (mons->is_named() && mons->friendly()
         && !mons_is_hepliaklqana_ancestor(mons->type))
@@ -2036,6 +2039,22 @@ item_def* monster_die(monster& mons, killer_type killer,
     // you because the shadow's mid is MID_PLAYER.
     if (MON_KILL(killer) && killer_index == you.mindex())
         killer = (killer == KILL_MON_MISSILE) ? KILL_YOU_MISSILE : KILL_YOU;
+
+    if (mons.is_head() && killer != KILL_MISC)
+        mons.get_big_monster()->on_head_died(killer, killer_index, silent);
+    else if (mons.is_part() && killer != KILL_MISC)
+    {
+        if (!mons.get_big_monster()->on_part_died(&mons, killer,
+                                                        killer_index, silent))
+        {
+            // if `on_part_died` returns false, the part that died isn't
+            // considered a distinct monster that requires credit.
+            killer = KILL_MISC;
+            killer_index = NON_MONSTER;
+            silent = true; // does this have any weird consequences?
+        }
+    }
+
 
     // Take notes and mark milestones.
     record_monster_defeat(&mons, killer);

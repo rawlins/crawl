@@ -233,6 +233,7 @@ bool interrupt_cmd_repeat(activity_interrupt_type ai,
 
     if (ai == AI_SEE_MONSTER)
     {
+        // this is all very redundant with delay.cc:_monster_warning
         const monster* mon = at.mons_data;
         ASSERT(mon);
         if (!you.can_see(*mon))
@@ -243,6 +244,10 @@ bool interrupt_cmd_repeat(activity_interrupt_type ai,
         {
             return false;
         }
+
+        // TODO: auto-exclude on parts?
+        if (mon->is_part() && !mon->is_head())
+            return false;
 
         crawl_state.cancel_cmd_repeat();
 

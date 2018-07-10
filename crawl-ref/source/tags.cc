@@ -58,6 +58,7 @@
 #include "jobs.h"
 #include "mapmark.h"
 #include "misc.h"
+#include "mon-big.h"
 #include "mon-death.h"
 #if TAG_MAJOR_VERSION == 34
  #include "mon-place.h"
@@ -5586,6 +5587,13 @@ static void tag_construct_level_monsters(writer &th)
     for (int i = 0; i < nm; i++)
     {
         monster& m(menv[i]);
+        if (m.alive() && m.is_head())
+            m.get_big_monster()->sync_monster_props();
+    }
+
+    for (int i = 0; i < nm; i++)
+    {
+        monster& m(menv[i]);
 
 #if defined(DEBUG) || defined(DEBUG_MONS_SCAN)
         if (m.type != MONS_NO_MONSTER)
@@ -6409,6 +6417,8 @@ static void tag_read_level_monsters(reader &th)
     for (int i = count; i < MAX_MONS_ALLOC; ++i)
         env.mons_alloc[i] = MONS_NO_MONSTER;
 
+    vector<monster *> bigmons_heads;
+
     // how many monsters?
     count = unmarshallShort(th);
     ASSERT_RANGE(count, 0, MAX_MONSTERS + 1);
@@ -6456,6 +6466,10 @@ static void tag_read_level_monsters(reader &th)
         }
 #endif
         mgrd(m.pos()) = i;
+
+        // load all monsters before reconstructing big_monsters
+        if (big_monster::stores_big_monster(m))
+            bigmons_heads.push_back(&m);
     }
 #if TAG_MAJOR_VERSION == 34
     // This relies on TAG_YOU (including lost monsters) being unmarshalled
@@ -6490,6 +6504,10 @@ static void tag_read_level_monsters(reader &th)
         }
     }
 #endif
+
+    dprf("loading %d bigmons heads", (int) bigmons_heads.size());
+    for (auto m : bigmons_heads)
+        big_monster::load_big_monster(*m);
 }
 
 static void _debug_count_tiles()

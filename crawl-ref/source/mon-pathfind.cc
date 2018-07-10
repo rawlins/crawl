@@ -5,6 +5,7 @@
 #include "directn.h"
 #include "env.h"
 #include "los.h"
+#include "mon-big.h"
 #include "mon-movetarget.h"
 #include "mon-place.h"
 #include "religion.h"
@@ -421,11 +422,22 @@ bool monster_pathfind::traversable(const coord_def& p)
             return true;
         }
 
-        return false;
+        if (mons && mons->is_head())
+        {
+            // big_monster parts show as opaque, because they are stationary.
+            // Check if it can move through itself.  TODO: swapping for other
+            // monsters? Clean up this whole mess?
+            return mons->get_big_monster()->head_fits_at(p, true);
+        } else
+            return false;
     }
 
     if (mons)
+    {
+        if (mons->is_head() && !mons->get_big_monster()->head_fits_at(p, false))
+            return false;
         return mons_traversable(p);
+    }
 
     return feat_has_solid_floor(grd(p));
 }

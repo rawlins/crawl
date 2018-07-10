@@ -33,6 +33,7 @@
 #include "losglobal.h"
 #include "message.h"
 #include "mon-act.h"
+#include "mon-big.h"
 #include "mon-behv.h"
 #include "mon-death.h"
 #include "mon-gear.h"
@@ -117,8 +118,11 @@ bool monster_habitable_grid(const monster* mon,
 {
     // Zombified monsters enjoy the same habitat as their original,
     // except lava-based monsters.
-    const monster_type mt = fixup_zombie_type(mon->type,
-                                              mons_base_type(*mon));
+    const monster *real_mon = mon->is_part()
+                        ? &(mon->get_big_monster()->get_reference_monster(*mon))
+                        : mon;
+    const monster_type mt = fixup_zombie_type(real_mon->type,
+                                              mons_base_type(*real_mon));
 
     return monster_habitable_grid(mt, actual_grid, DNGN_UNSEEN, mon->airborne());
 }
@@ -828,6 +832,16 @@ monster* place_monster(mgen_data mg, bool force_pos, bool dont_place)
             else if (mon->type == MONS_KIRKE)
                 member->props["kirke_band"] = true;
         }
+    }
+    if (mon->type == MONS_IGUANA)
+    {
+        shared_ptr<line_monster> b = make_shared<line_monster>(*mon, 2);
+        mon->set_big_monster(b);
+    }
+    else if (mon->type == MONS_WORM)
+    {
+        shared_ptr<line_monster> b = make_shared<line_monster>(*mon, 6);
+        mon->set_big_monster(b);        
     }
 
     // Placement of first monster, at least, was a success.

@@ -1104,6 +1104,10 @@ static inline bool _monster_warning(activity_interrupt_type ai,
     if (mon->is_summoned() && !delay)
         return false;
 
+    // TODO: auto-exclude on parts?
+    if (mon->is_part() && !mon->is_head())
+        return false;
+
     if (at.context == SC_ALREADY_SEEN || at.context == SC_UNCHARM)
     {
         // Only say "comes into view" if the monster wasn't in view

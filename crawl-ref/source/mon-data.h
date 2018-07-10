@@ -7332,6 +7332,24 @@ DUMMY(MONS_HELL_LORD, '&', COLOUR_UNDEF, "hell lord", TILEP_MONS_PROGRAM_BUG)
     {TILEP_MONS_ERESHKIGAL}, TILE_ERROR
 },
 
+// pseudomonsters
+{
+    // TODO: this uses M_STATIONARY based on tentacles, but it might be better
+    // in the long run to distinguish between truly stationary monsters and
+    // monsters whose movement is not directed by themselves.
+    MONS_PART, '*', LIGHTMAGENTA, "monster part",
+    M_NO_POLY_TO | M_STATIONARY,
+    MR_NO_FLAGS,
+    10, MONS_PART, MONS_PART, MH_NATURAL, MAG_IMMUNE,
+    { AT_NO_ATK, AT_NO_ATK, AT_NO_ATK, AT_NO_ATK },
+    12, 480,
+    5, 7, MST_NO_SPELLS, CE_NOCORPSE, S_SILENT,
+    I_ANIMAL, HT_AMPHIBIOUS, 18, DEFAULT_ENERGY,
+    MONUSE_NOTHING, SIZE_LARGE, MON_SHAPE_MISC,
+    {TILEP_MONS_PROGRAM_BUG}, TILE_ERROR
+},
+
+
 // Impossible to hit, impossible to damage, immune to everything,
 // unkillable, just sits there doing nothing but casting Shadow Creatures
 // over and over.

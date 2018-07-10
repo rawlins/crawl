@@ -43,6 +43,7 @@
 #include "mon-abil.h"
 #include "mon-act.h"
 #include "mon-behv.h"
+#include "mon-big.h"
 #include "mon-book.h"
 #include "mon-cast.h"
 #include "mon-clone.h"
@@ -76,7 +77,7 @@ monster::monster()
       enchantments(), flags(), xp_tracking(XP_GENERATED), experience(0),
       base_monster(MONS_NO_MONSTER), number(0), colour(COLOUR_INHERIT),
       foe_memory(0), god(GOD_NO_GOD), ghost(), seen_context(SC_NONE),
-      client_id(0), hit_dice(0)
+      client_id(0), hit_dice(0), bigmon(nullptr)
 
 {
     type = MONS_NO_MONSTER;
@@ -142,6 +143,8 @@ void monster::reset()
     went_unseen_this_turn = false;
     unseen_pos = coord_def(0, 0);
 
+    bigmon = nullptr;
+
     mons_remove_from_grid(*this);
     target.reset();
     position.reset();
@@ -200,6 +203,7 @@ void monster::init_with(const monster& mon)
     damage_friendly   = mon.damage_friendly;
     damage_total      = mon.damage_total;
     xp_tracking       = mon.xp_tracking;
+    bigmon            = mon.bigmon;
 
     if (mon.ghost.get())
         ghost.reset(new ghost_demon(*mon.ghost));
@@ -3520,6 +3524,9 @@ void monster::suicide(int hp_target)
 
 mon_holy_type monster::holiness(bool /*temp*/) const
 {
+    if (is_part() && !get_big_monster()->is_reference_monster(*this))
+        return get_big_monster()->get_reference_monster(*this).holiness();
+
     // zombie kraken tentacles
     if (testbits(flags, MF_FAKE_UNDEAD))
         return MH_UNDEAD;
@@ -4378,6 +4385,17 @@ int monster::hurt(const actor *agent, int amount, beam_type flavour,
         return 0;
     }
 
+    if (is_part() && !is_head())
+    {
+        if (!get_big_monster()->on_part_damage(this, agent, amount, flavour,
+                                                                kill_type))
+        {
+            // no further cleanup needed
+            return 0; // TODO: revisit
+        }
+    }
+
+
     if (alive())
     {
         if (amount != INSTANT_DEATH
@@ -4484,6 +4502,12 @@ int monster::hurt(const actor *agent, int amount, beam_type flavour,
         // Allow the victim to exhibit passive damage behaviour (e.g.
         // the Royal Jelly or Uskayaw's Pain Bond).
         react_to_damage(agent, amount, flavour);
+
+        if (is_head())
+        {
+            get_big_monster()->on_head_damage(agent, amount, flavour,
+                                                                    kill_type);
+        }
 
         // Don't mirror Yredelemnul's effects (in particular don't mirror
         // mirrored damage).
@@ -4616,7 +4640,12 @@ void monster::ghost_demon_init()
     hit_points      = max_hit_points;
     speed           = ghost->speed;
     speed_increment = 70;
-    if (ghost->colour != COLOUR_UNDEF)
+    // COLOUR_INHERIT is -1, but this field is for some reason an unsigned
+    // char; this range check is to prevent a crash on COLOUR_INHERIT much
+    // later (because COLOUR_INHERIT gets converted to 255 and compares false
+    // against itself). It's probably a bug that this is unsigned, but it is
+    // serialized so would be a pain to change.
+    if (ghost->colour != COLOUR_UNDEF && ghost->colour < NUM_COLOURS)
         colour = ghost->colour;
 
     load_ghost_spells();
@@ -4770,7 +4799,9 @@ bool monster::check_set_valid_home(const coord_def &place,
     if (!in_bounds(place))
         return false;
 
-    if (actor_at(place))
+    if (is_part() && !bigmon->head_fits_at(place))
+        return false;
+    else if (actor_at(place))
         return false;
 
     if (!monster_habitable_grid(this, grd(place)))
@@ -5530,6 +5561,9 @@ void monster::self_destruct()
  */
 bool monster::move_to_pos(const coord_def &newpos, bool clear_net, bool force)
 {
+    if (is_part())
+        return get_big_monster()->move_head_to(newpos);
+
     const actor* a = actor_at(newpos);
     if (a && !(a->is_player() && (fedhas_passthrough(this) || force)))
         return false;
@@ -5562,6 +5596,11 @@ bool monster::swap_with(monster* other)
 {
     const coord_def old_pos = pos();
     const coord_def new_pos = other->pos();
+
+    // TODO: how/if to implement swapping for big monsters?
+    // swapping with parts of oneself can be done via regular move_to_pos.
+    if (is_part() || other->is_part())
+        return false;
 
     if (!can_pass_through(new_pos)
         || !other->can_pass_through(old_pos))

@@ -41,6 +41,7 @@
 #include "message.h"
 #include "mon-abil.h"
 #include "mon-behv.h"
+#include "mon-big.h"
 #include "mon-book.h"
 #include "mon-cast.h"
 #include "mon-death.h"
@@ -2953,6 +2954,11 @@ bool mon_can_move_to_pos(const monster* mons, const coord_def& delta,
             return false; // blocks square
         }
 
+        // see if big_monster-specific movement applies. Otherwise, proceed
+        // as normal.
+        if (mons->is_head() && mons->get_big_monster()->head_fits_at(targ))
+            return true;
+
         if (!summon_can_attack(mons, targ))
             return false;
 
@@ -3248,9 +3254,11 @@ static bool _do_move_monster(monster& mons, const coord_def& delta)
     }
 
     // This includes the case where the monster attacks itself.
-    if (monster* def = monster_at(f))
+    monster* defender = monster_at(f);
+    if (defender &&
+            !(mons.is_part() && defender->is_part_of(mons.get_big_monster())))
     {
-        fight_melee(&mons, def);
+        fight_melee(&mons, defender);
         return true;
     }
 
@@ -3630,20 +3638,22 @@ static bool _monster_move(monster* mons)
         }
 
         // Check for attacking another monster.
-        if (monster* targ = monster_at(mons->pos() + mmov))
+        monster *defender = monster_at(mons->pos() + mmov);
+        if (defender &&
+            !(mons->is_part() && defender->is_part_of(mons->get_big_monster())))
         {
-            if (mons_aligned(mons, targ)
+            if (mons_aligned(mons, defender)
                 && !mons->has_ench(ENCH_INSANE))
             {
                 bool takes_time = !(mons->type == MONS_WANDERING_MUSHROOM
-                                    && targ->type == MONS_TOADSTOOL
-                                    || mons->type == MONS_TOADSTOOL
-                                       && targ->type == MONS_WANDERING_MUSHROOM);
+                            && defender->type == MONS_TOADSTOOL
+                            || mons->type == MONS_TOADSTOOL
+                                && defender->type == MONS_WANDERING_MUSHROOM);
                 ret = monster_swaps_places(mons, mmov, takes_time);
             }
             else
             {
-                fight_melee(mons, targ);
+                fight_melee(mons, defender);
                 ret = true;
             }
 

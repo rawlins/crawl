@@ -50,6 +50,7 @@
 #include "libutil.h"
 #include "macro.h"
 #include "message.h"
+#include "mon-big.h"
 #include "mon-book.h"
 #include "mon-cast.h" // mons_spell_range
 #include "mon-death.h"
@@ -4067,6 +4068,12 @@ void get_monster_db_desc(const monster_info& mi, describe_info &inf,
         for (const auto &entry : blame)
             inf.body << "    " << entry.get_string() << "\n";
     }
+    if (mons.is_part())
+        inf.body << "\n" << mons.get_big_monster()->describe();
+    else if (mons.type == MONS_PART)
+        inf.body << "\n" << make_stringf("Detached MONS_PART! mid %d.\n", mons.mid);
+    inf.body << "\n" << big_monster::describe_bigmon_props(mons);
+
     inf.body << "\n\n" << debug_constriction_string(&mons);
 #endif
 }

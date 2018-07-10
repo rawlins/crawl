@@ -174,6 +174,8 @@ enum monster_info_flags
     MB_SLOWLY_DYING,
     MB_PINNED,
     MB_VILE_CLUTCH,
+    MB_PART,
+    MB_HEAD,
     NUM_MB_FLAGS
 };
 
@@ -259,6 +261,8 @@ struct monster_info : public monster_info_base
         }
         return *this;
     }
+
+    void init_from_mons(const monster &m, int milev);
 
     void to_string(int count, string& desc, int& desc_colour,
                    bool fullname = true, const char *adjective = nullptr) const;

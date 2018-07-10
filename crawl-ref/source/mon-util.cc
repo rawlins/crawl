@@ -5460,6 +5460,8 @@ bool mons_is_notable(const monster& mons)
     // tentacles aren't real monsters.
     if (mons_is_tentacle_or_tentacle_segment(mons.type))
         return false;
+    if (mons.type == MONS_PART)
+        return false;
     // Hostile ghosts and illusions are always interesting.
     if (mons.type == MONS_PLAYER_GHOST
         || mons.type == MONS_PLAYER_ILLUSION

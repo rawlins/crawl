@@ -46,7 +46,7 @@ public:
                          colour_t force_colour = BLACK);
     void init_dancing_weapon(const item_def& weapon, int power);
     void init_spectral_weapon(const item_def& weapon, int power);
-
+    void init_monster_part(const monster &head);
     void ugly_thing_to_very_ugly_thing();
 
 

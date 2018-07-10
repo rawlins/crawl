@@ -27,6 +27,7 @@
 #include "libutil.h"
 #include "los.h"
 #include "message.h"
+#include "mon-big.h"
 #include "mon-book.h"
 #include "mon-death.h" // ELVEN_IS_ENERGIZED_KEY
 #include "mon-tentacle.h"
@@ -421,21 +422,38 @@ static description_level_type _article_for(const actor* a)
 
 monster_info::monster_info(const monster* m, int milev)
 {
-    ASSERT(m); // TODO: change to const monster &mon
+    ASSERT(m);
+    const monster *orig = m;
+    if (m->is_part())
+        m = &m->get_big_monster()->get_reference_monster(*m);
+
+    init_from_mons(*m, milev);
+
+    if (orig->is_part())
+    {
+        mb.set(MB_PART);
+        pos = orig->pos();
+    }
+    if (orig->is_head())
+        mb.set(MB_HEAD);
+}
+
+void monster_info::init_from_mons(const monster &m, int milev)
+{
     mb.reset();
     attitude = ATT_HOSTILE;
-    pos = m->pos();
+    pos = m.pos();
 
-    attitude = mons_attitude(*m);
+    attitude = mons_attitude(m);
 
-    type = m->type;
-    threat = mons_threat_level(*m);
+    type = m.type;
+    threat = mons_threat_level(m);
 
     props.clear();
     // CrawlHashTable::begin() const can fail if the hash is empty.
-    if (!m->props.empty())
+    if (!m.props.empty())
     {
-        for (const auto &entry : m->props)
+        for (const auto &entry : m.props)
             if (_is_public_key(entry.first))
                 props[entry.first] = entry.second;
     }
@@ -443,40 +461,40 @@ monster_info::monster_info(const monster* m, int milev)
     // Translate references to tentacles into just their locations
     if (mons_is_tentacle_or_tentacle_segment(type))
     {
-        _translate_tentacle_ref(*this, m, "inwards");
-        _translate_tentacle_ref(*this, m, "outwards");
+        _translate_tentacle_ref(*this, &m, "inwards");
+        _translate_tentacle_ref(*this, &m, "outwards");
     }
 
-    base_type = m->base_monster;
+    base_type = m.base_monster;
     if (base_type == MONS_NO_MONSTER)
         base_type = type;
 
     if (type == MONS_SLIME_CREATURE)
-        slime_size = m->blob_size;
+        slime_size = m.blob_size;
     else if (type == MONS_BALLISTOMYCETE)
-        is_active = !!m->ballisto_activity;
+        is_active = !!m.ballisto_activity;
     else if (_is_hydra(*this))
-        num_heads = m->num_heads;
+        num_heads = m.num_heads;
     // others use number for internal information
     else
         number = 0;
 
-    _colour = m->colour;
+    _colour = m.colour;
 
-    if (m->is_summoned()
-        && (!m->has_ench(ENCH_PHANTOM_MIRROR) || m->friendly()))
+    if (m.is_summoned()
+        && (!m.has_ench(ENCH_PHANTOM_MIRROR) || m.friendly()))
     {
         mb.set(MB_SUMMONED);
     }
-    else if (m->is_perm_summoned())
+    else if (m.is_perm_summoned())
         mb.set(MB_PERM_SUMMON);
-    else if (testbits(m->flags, MF_NO_REWARD)
-             && mons_class_gives_xp(m->type, true))
+    else if (testbits(m.flags, MF_NO_REWARD)
+             && mons_class_gives_xp(m.type, true))
     {
         mb.set(MB_NO_REWARD);
     }
 
-    if (m->has_ench(ENCH_SUMMON_CAPPED))
+    if (m.has_ench(ENCH_SUMMON_CAPPED))
         mb.set(MB_SUMMONED_CAPPED);
 
     if (mons_is_unique(type))
@@ -494,9 +512,9 @@ monster_info::monster_info(const monster* m, int milev)
         }
     }
 
-    mname = m->mname;
+    mname = m.mname;
 
-    const auto name_flags = m->flags & MF_NAME_MASK;
+    const auto name_flags = m.flags & MF_NAME_MASK;
 
     if (name_flags == MF_NAME_SUFFIX)
         mb.set(MB_NAME_SUFFIX);
@@ -508,106 +526,106 @@ monster_info::monster_info(const monster* m, int milev)
     const bool need_name_desc =
         name_flags == MF_NAME_SUFFIX
             || name_flags == MF_NAME_ADJECTIVE
-            || (m->flags & MF_NAME_DEFINITE);
+            || (m.flags & MF_NAME_DEFINITE);
 
     if (!mname.empty()
-        && !(m->flags & MF_NAME_DESCRIPTOR)
+        && !(m.flags & MF_NAME_DESCRIPTOR)
         && !need_name_desc)
     {
         mb.set(MB_NAME_UNQUALIFIED);
         mb.set(MB_NAME_THE);
     }
-    else if (m->flags & MF_NAME_DEFINITE)
+    else if (m.flags & MF_NAME_DEFINITE)
         mb.set(MB_NAME_THE);
-    if (m->flags & MF_NAME_ZOMBIE)
+    if (m.flags & MF_NAME_ZOMBIE)
         mb.set(MB_NAME_ZOMBIE);
-    if (m->flags & MF_NAME_SPECIES)
+    if (m.flags & MF_NAME_SPECIES)
         mb.set(MB_NO_NAME_TAG);
 
     // Ghostliness needed for name
-    if (testbits(m->flags, MF_SPECTRALISED))
+    if (testbits(m.flags, MF_SPECTRALISED))
         mb.set(MB_SPECTRALISED);
 
     if (milev <= MILEV_NAME)
     {
         if (type == MONS_DANCING_WEAPON
-            && m->inv[MSLOT_WEAPON] != NON_ITEM)
+            && m.inv[MSLOT_WEAPON] != NON_ITEM)
         {
             inv[MSLOT_WEAPON].reset(
-                new item_def(get_item_info(mitm[m->inv[MSLOT_WEAPON]])));
+                new item_def(get_item_info(mitm[m.inv[MSLOT_WEAPON]])));
         }
         return;
     }
 
-    holi = m->holiness();
+    holi = m.holiness();
 
-    mintel = mons_intel(*m);
-    hd = m->get_hit_dice();
-    ac = m->armour_class(false);
-    ev = m->evasion(EV_IGNORE_UNIDED);
-    base_ev = m->base_evasion();
-    mr = m->res_magic(false);
-    can_see_invis = m->can_see_invisible(false);
-    mresists = get_mons_resists(*m);
-    mitemuse = mons_itemuse(*m);
-    mbase_speed = mons_base_speed(*m, true);
-    menergy = mons_energy(*m);
+    mintel = mons_intel(m);
+    hd = m.get_hit_dice();
+    ac = m.armour_class(false);
+    ev = m.evasion(EV_IGNORE_UNIDED);
+    base_ev = m.base_evasion();
+    mr = m.res_magic(false);
+    can_see_invis = m.can_see_invisible(false);
+    mresists = get_mons_resists(m);
+    mitemuse = mons_itemuse(m);
+    mbase_speed = mons_base_speed(m, true);
+    menergy = mons_energy(m);
 
     // Not an MB_ because it's rare.
-    if (m->cloud_immune(false))
+    if (m.cloud_immune(false))
         props[CLOUD_IMMUNE_MB_KEY] = true;
 
-    if (m->airborne())
+    if (m.airborne())
         mb.set(MB_AIRBORNE);
-    if (mons_wields_two_weapons(*m))
+    if (mons_wields_two_weapons(m))
         mb.set(MB_TWO_WEAPONS);
-    if (!mons_can_regenerate(*m))
+    if (!mons_can_regenerate(m))
         mb.set(MB_NO_REGEN);
-    if (m->haloed() && !m->umbraed())
+    if (m.haloed() && !m.umbraed())
         mb.set(MB_HALOED);
-    if (!m->haloed() && m->umbraed())
+    if (!m.haloed() && m.umbraed())
         mb.set(MB_UMBRAED);
-    if (mons_looks_stabbable(*m))
+    if (mons_looks_stabbable(m))
         mb.set(MB_STABBABLE);
-    if (mons_looks_distracted(*m))
+    if (mons_looks_distracted(m))
         mb.set(MB_DISTRACTED);
-    if (m->liquefied_ground())
+    if (m.liquefied_ground())
         mb.set(MB_SLOW_MOVEMENT);
-    if (m->is_wall_clinging())
+    if (m.is_wall_clinging())
         mb.set(MB_CLINGING);
 
-    dam = mons_get_damage_level(*m);
+    dam = mons_get_damage_level(m);
 
-    if (mons_is_threatening(*m)) // Firewood, butterflies, etc.
+    if (mons_is_threatening(m)) // Firewood, butterflies, etc.
     {
-        if (m->asleep())
+        if (m.asleep())
         {
-            if (!m->can_hibernate(true))
+            if (!m.can_hibernate(true))
                 mb.set(MB_DORMANT);
             else
                 mb.set(MB_SLEEPING);
         }
         // Applies to both friendlies and hostiles
-        else if (mons_is_fleeing(*m))
+        else if (mons_is_fleeing(m))
             mb.set(MB_FLEEING);
-        else if (mons_is_wandering(*m) && !mons_is_batty(*m))
+        else if (mons_is_wandering(m) && !mons_is_batty(m))
         {
-            if (m->is_stationary())
+            if (m.is_stationary())
                 mb.set(MB_UNAWARE);
             else
                 mb.set(MB_WANDERING);
         }
         // TODO: is this ever needed?
-        else if (m->foe == MHITNOT && !mons_is_batty(*m)
-                 && m->attitude == ATT_HOSTILE)
+        else if (m.foe == MHITNOT && !mons_is_batty(m)
+                 && m.attitude == ATT_HOSTILE)
         {
             mb.set(MB_UNAWARE);
         }
     }
 
-    for (auto &entry : m->enchantments)
+    for (auto &entry : m.enchantments)
     {
-        monster_info_flags flag = ench_to_mb(*m, entry.first);
+        monster_info_flags flag = ench_to_mb(m, entry.first);
         if (flag != NUM_MB_FLAGS)
             mb.set(flag);
     }
@@ -615,31 +633,31 @@ monster_info::monster_info(const monster* m, int milev)
     if (type == MONS_SILENT_SPECTRE)
         mb.set(MB_SILENCING);
 
-    if (you.beheld_by(*m))
+    if (you.beheld_by(m))
         mb.set(MB_MESMERIZING);
 
-    if (testbits(m->flags, MF_ENSLAVED_SOUL))
+    if (testbits(m.flags, MF_ENSLAVED_SOUL))
         mb.set(MB_ENSLAVED);
 
-    if (m->is_shapeshifter() && (m->flags & MF_KNOWN_SHIFTER))
+    if (m.is_shapeshifter() && (m.flags & MF_KNOWN_SHIFTER))
         mb.set(MB_SHAPESHIFTER);
 
-    if (m->known_chaos())
+    if (m.known_chaos())
         mb.set(MB_CHAOTIC);
 
-    if (m->submerged())
+    if (m.submerged())
         mb.set(MB_SUBMERGED);
 
-    if (m->type == MONS_DOOM_HOUND && !m->props.exists(DOOM_HOUND_HOWLED_KEY)
-        && !m->is_summoned())
+    if (m.type == MONS_DOOM_HOUND && !m.props.exists(DOOM_HOUND_HOWLED_KEY)
+        && !m.is_summoned())
     {
         mb.set(MB_READY_TO_HOWL);
     }
 
     if (mons_is_pghost(type))
     {
-        ASSERT(m->ghost.get());
-        ghost_demon& ghost = *m->ghost;
+        ASSERT(m.ghost.get());
+        ghost_demon& ghost = *m.ghost;
         i_ghost.species = ghost.species;
         if (species_is_draconian(i_ghost.species) && ghost.xl < 7)
             i_ghost.species = SP_BASE_DRACONIAN;
@@ -659,29 +677,29 @@ monster_info::monster_info(const monster* m, int milev)
 
     // book loading for player ghost and vault monsters
     spells.clear();
-    if (m->props.exists(CUSTOM_SPELLS_KEY) || mons_is_pghost(type))
-        spells = m->spells;
-    if (m->is_priest())
+    if (m.props.exists(CUSTOM_SPELLS_KEY) || mons_is_pghost(type))
+        spells = m.spells;
+    if (m.is_priest())
         props["priest"] = true;
-    else if (m->is_actual_spellcaster())
+    else if (m.is_actual_spellcaster())
         props["actual_spellcaster"] = true;
 
     // assumes spell hd modifying effects are always public
-    const int spellhd = m->spell_hd();
+    const int spellhd = m.spell_hd();
     if (spellhd != hd)
         props[SPELL_HD_KEY] = spellhd;
 
     for (int i = 0; i < MAX_NUM_ATTACKS; ++i)
     {
         // hydras are a mess!
-        const int atk_index = m->has_hydra_multi_attack() ? 0 : i;
-        attack[i] = mons_attack_spec(*m, atk_index, true);
+        const int atk_index = m.has_hydra_multi_attack() ? 0 : i;
+        attack[i] = mons_attack_spec(m, atk_index, true);
     }
 
     for (unsigned i = 0; i <= MSLOT_LAST_VISIBLE_SLOT; ++i)
     {
         bool ok;
-        if (m->inv[i] == NON_ITEM)
+        if (m.inv[i] == NON_ITEM)
             ok = false;
         else if (i == MSLOT_MISCELLANY)
             ok = false;
@@ -689,7 +707,7 @@ monster_info::monster_info(const monster* m, int milev)
             ok = true;
         else if (i == MSLOT_WAND)
             ok = props.exists("wand_known") && props["wand_known"];
-        else if (m->props.exists("ash_id") && item_type_known(mitm[m->inv[i]]))
+        else if (m.props.exists("ash_id") && item_type_known(mitm[m.inv[i]]))
             ok = true;
         else if (i == MSLOT_ALT_WEAPON)
             ok = wields_two_weapons();
@@ -698,30 +716,30 @@ monster_info::monster_info(const monster* m, int milev)
         else
             ok = true;
         if (ok)
-            inv[i].reset(new item_def(get_item_info(mitm[m->inv[i]])));
+            inv[i].reset(new item_def(get_item_info(mitm[m.inv[i]])));
     }
 
     fire_blocker = DNGN_UNSEEN;
     if (!crawl_state.arena_suspended
-        && m->pos() != you.pos())
+        && m.pos() != you.pos())
     {
-        _blocked_ray(m->pos(), &fire_blocker);
+        _blocked_ray(m.pos(), &fire_blocker);
     }
 
-    if (m->props.exists("quote"))
-        quote = m->props["quote"].get_string();
+    if (m.props.exists("quote"))
+        quote = m.props["quote"].get_string();
 
-    if (m->props.exists("description"))
-        description = m->props["description"].get_string();
+    if (m.props.exists("description"))
+        description = m.props["description"].get_string();
 
     // init names of constrictor and constrictees
     constrictor_name = "";
     constricting_name.clear();
 
     // Name of what this monster is directly constricted by, if any
-    if (m->is_directly_constricted())
+    if (m.is_directly_constricted())
     {
-        const actor * const constrictor = actor_by_mid(m->constricted_by);
+        const actor * const constrictor = actor_by_mid(m.constricted_by);
         ASSERT(constrictor);
         constrictor_name = (constrictor->constriction_does_damage(true) ?
                             "constricted by " : "held by ")
@@ -730,11 +748,11 @@ monster_info::monster_info(const monster* m, int milev)
     }
 
     // Names of what this monster is directly constricting, if any
-    if (m->constricting)
+    if (m.constricting)
     {
         const char *participle =
-            m->constriction_does_damage(true) ? "constricting " : "holding ";
-        for (const auto &entry : *m->constricting)
+            m.constriction_does_damage(true) ? "constricting " : "holding ";
+        for (const auto &entry : *m.constricting)
         {
             const actor* const constrictee = actor_by_mid(entry.first);
 
@@ -748,21 +766,21 @@ monster_info::monster_info(const monster* m, int milev)
         }
     }
 
-    if (mons_has_known_ranged_attack(*m))
+    if (mons_has_known_ranged_attack(m))
         mb.set(MB_RANGED_ATTACK);
 
     // this must be last because it provides this structure to Lua code
     if (milev > MILEV_SKIP_SAFE)
     {
-        if (mons_is_safe(m))
+        if (mons_is_safe(&m))
             mb.set(MB_SAFE);
         else
             mb.set(MB_UNSAFE);
-        if (mons_is_firewood(*m))
+        if (mons_is_firewood(m))
             mb.set(MB_FIREWOOD);
     }
 
-    client_id = m->get_client_id();
+    client_id = m.get_client_id();
 }
 
 /// Player-known max HP information for a monster: "about 55", "243".
@@ -916,6 +934,9 @@ string monster_info::_core_name() const
         s += " " + mname;
     else if (is(MB_NAME_ADJECTIVE))
         s = mname + " " + s;
+
+    if (is(MB_PART) && !is(MB_HEAD))
+        s += " part";
 
     return s;
 }

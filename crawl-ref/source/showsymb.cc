@@ -13,6 +13,7 @@
 #include "env.h"
 #include "item-name.h"
 #include "libutil.h" // map_find
+#include "mon-big.h"
 #include "options.h"
 #include "religion.h"
 #include "stash.h"
@@ -171,7 +172,7 @@ static monster_type _show_mons_type(const monster_info& mi)
     return mi.type;
 }
 
-static int _get_mons_colour(const monster_info& mi)
+int get_mons_colour(const monster_info& mi)
 {
     // Show hp directly on the monster, except for irrelevant ones.
     // Fedhas worshippers might be interested in their plants however.
@@ -385,13 +386,22 @@ static cglyph_t _get_cell_glyph_with_class(const map_cell& cell,
         else if (!coloured)
             g.col = Options.remembered_monster_colour;
         else
-            g.col = _get_mons_colour(*mi);
+            g.col = get_mons_colour(*mi);
 
         monster_type stype = _show_mons_type(*mi);
         if (show.mons == MONS_SENSED)
             g.ch = mons_char(mi->base_type);
         else
             g.ch = mons_char(stype);
+
+        if (mi->is(MB_PART) && you.see_cell(mi->pos) && you.on_current_level)
+        {
+            monster *m = monster_at(mi->pos);
+            ASSERT(m && m->is_part());
+            m->get_big_monster()->adjust_part_glyph(g, m, mi);
+        }
+        // else, the cell is out of view and we shouldn't adjust the glyph
+        // TODO: this still needs some work
 
         if (mons_is_tentacle_segment(stype))
         {
@@ -562,7 +572,7 @@ cglyph_t get_mons_glyph(const monster_info& mi)
     cglyph_t g;
 
     g.ch = mons_char(stype);
-    g.col = _get_mons_colour(mi);
+    g.col = get_mons_colour(mi);
     g.col = real_colour(g.col);
     return g;
 }

@@ -35,6 +35,7 @@ const int KRAKEN_TENTACLE_RANGE = 3;
 typedef map<enchant_type, mon_enchant> mon_enchant_list;
 
 struct monsterentry;
+class big_monster;
 
 class monster : public actor
 {
@@ -547,6 +548,15 @@ public:
     bool is_parent_monster_of(const monster* mons) const;
     bool is_child_tentacle_segment() const;
 
+    bool is_part() const;
+    bool is_part_of(const big_monster *b) const;
+    bool is_part_of(const shared_ptr<big_monster> &b) const;
+    bool is_head() const;
+    shared_ptr<big_monster> get_big_monster() const;
+    void set_big_monster(big_monster *b);
+    void set_big_monster(shared_ptr<big_monster> b);
+
+
     bool is_illusion() const;
     bool is_divine_companion() const;
     // Jumping spiders (jump instead of blink)
@@ -565,6 +575,7 @@ public:
 
 private:
     int hit_dice;
+    shared_ptr<big_monster> bigmon;
 
 private:
     bool pickup(item_def &item, mon_inv_type slot, bool msg);

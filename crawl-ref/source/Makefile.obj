@@ -145,6 +145,7 @@ misc.o \
 mon-abil.o \
 mon-act.o \
 mon-behv.o \
+mon-big.o \
 mon-cast.o \
 mon-clone.o \
 mon-death.o \

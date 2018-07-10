@@ -29,6 +29,7 @@
 #include "libutil.h"
 #include "macro.h"
 #include "message.h"
+#include "mon-big.h"
 #include "mon-death.h"
 #include "mon-pathfind.h"
 #include "mon-place.h"
@@ -767,20 +768,27 @@ static void _move_monster(const coord_def& where, int idx1)
 
     monster* mon1 = &menv[idx1];
 
-    const int idx2 = mgrd(moves.target);
-    monster* mon2 = monster_at(moves.target);
+    // no swapping for big_monsters, it's too complicated to be worth it
+    if (mon1->is_part())
+        mon1->get_big_monster()->move_head_to(moves.target);
+    else
+    {
+        const int idx2 = mgrd(moves.target);
+        monster* mon2 = monster_at(moves.target);
 
-    mon1->moveto(moves.target);
-    mgrd(moves.target) = idx1;
+        mon1->moveto(moves.target);
+        mgrd(moves.target) = idx1;
+
+        mgrd(where) = idx2;
+
+        if (mon2 != nullptr)
+        {
+            mon2->moveto(where);
+            mon1->check_redraw(where);
+        }
+    }
     mon1->check_redraw(moves.target);
 
-    mgrd(where) = idx2;
-
-    if (mon2 != nullptr)
-    {
-        mon2->moveto(where);
-        mon1->check_redraw(where);
-    }
     if (!you.see_cell(moves.target))
     {
         mon1->flags &= ~(MF_WAS_IN_VIEW | MF_SEEN);

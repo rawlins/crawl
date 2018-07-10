@@ -711,6 +711,10 @@ static like_map divine_likes[] =
                 if (victim && victim->evil())
                     return;
 
+                // don't get piety when new big_monster parts appear
+                if (victim && victim->is_part() && !victim->is_head())
+                    return;
+
                 const int level = denom; // also = piety
                 denom = level / 2 + 6 - you.experience_level / 4;
                 piety = denom - 4;
