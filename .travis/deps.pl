@@ -6,7 +6,7 @@ my @deps = qw(
     gdb
 );
 
-if ($ENV{BUILD_ALL}) {
+if ($ENV{BUILD_ALL} || $ENV{CROSSCOMPILE}) {
     retry(qw(git submodule update --init --recursive));
 
     push @deps, qw(
