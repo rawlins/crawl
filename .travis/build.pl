@@ -19,6 +19,7 @@ $ENV{FORCE_CXX} = $ENV{CXX};
 
 if ($ENV{CROSSCOMPILE}) {
     try("make CROSSHOST=i686-w64-mingw32 package-windows");
+    exit 0;
 }
 
 if ($ENV{FULLDEBUG}) {
