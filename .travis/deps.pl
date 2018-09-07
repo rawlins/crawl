@@ -7,7 +7,7 @@ my @deps = qw(
 );
 
 if ($ENV{BUILD_ALL} || $ENV{CROSSCOMPILE}) {
-    git fetch --unshallow
+    retry(qw(git fetch --unshallow && echo "Building `git describe --tags`"));
     retry(qw(git submodule update --init --recursive));
 
     push @deps, qw(
