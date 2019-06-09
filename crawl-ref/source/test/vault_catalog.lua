@@ -11,10 +11,10 @@
 
 crawl_require('dlua/explorer.lua')
 
-local starting_seed = 1   -- fixed seed to start with
+local starting_seed = "87885466577"   -- fixed seed to start with
 local fixed_seeds = 1     -- how many fixed seeds to run?
 local per_seed_iters = 1  -- how many stability tests to run per seed
-local rand_seeds = 1      -- how many random seeds to run
+local rand_seeds = 0      -- how many random seeds to run
 
 local max_depth = #explorer.generation_order
 
