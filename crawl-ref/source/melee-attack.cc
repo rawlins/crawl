@@ -75,6 +75,12 @@ melee_attack::melee_attack(actor *attk, actor *defn,
     attack_occurred = false;
     damage_brand = attacker->damage_brand(attack_number);
     init_attack(SK_UNARMED_COMBAT, attack_number);
+    // n.b. !using_weapon() means a clumsy bash
+    if (you.species.is_genus_monster() && !weapon
+                                    && you.monster_instance->has_ghost_brand())
+    {
+        damage_brand = you.monster_instance->ghost_brand();
+    }
     if (weapon && !using_weapon())
         wpn_skill = SK_FIGHTING;
 
@@ -99,6 +105,38 @@ bool melee_attack::handle_phase_attempted()
     {
         --effective_attack_number;
 
+        return false;
+    }
+
+    // handle all species genus monster secondary attacks as aux attacks if
+    // possible.
+    if (attacker->is_player()
+        && !you.species.is_genus_monster() && attack_number > 0)
+    {
+        return false;
+    }
+
+    // TODO: what about monsters (e.g. eyeballs, curse toe, etc)
+    // with no attacks at all? Right now, give them minimally one attack, with
+    // a couple of flavorful exceptions based on insubstantiality (ghosts,
+    // lost souls, wretched stars).
+    // One exception is orbs of fire, which are overridden when used
+    // for the player to have a basic singing attack.
+    // If you want lore, they've all become smart enough to figure out how to
+    // bang into things, even if that's not part of their innate repertoire.
+    if (attacker->is_player() && attk_type == AT_NONE)
+    {
+        ASSERT(you.species == SP_MONSTER);
+        if (attack_number > 0 || you.monster_instance->is_insubstantial())
+            return false;
+        // keep the type as AT_NONE; there's some special casing later.
+    }
+
+    if (attacker->is_player() && attack_number > 0 && attk_flavour != AF_CRUSH
+        && you.strength() + you.dex() <= random2(50))
+    {
+        // treat extra monster attacks like pseudo-aux attacks. I'm not sure I'm
+        // a huge fan of this stat mechanic, but let's make things consistent.
         return false;
     }
 
@@ -276,12 +314,14 @@ bool melee_attack::handle_phase_attempted()
     }
 
     if (attk_flavour == AF_SHADOWSTAB
+        && !attacker->is_player()
         && defender && !defender->can_see(*attacker))
     {
         if (you.see_cell(attack_position))
         {
-            mprf("%s strikes at %s from the darkness!",
+            mprf("%s %s at %s from the darkness!",
                  attacker->name(DESC_THE, true).c_str(),
+                 attacker->conj_verb("strike").c_str(),
                  defender->name(DESC_THE).c_str());
         }
         to_hit = AUTOMATIC_HIT;
@@ -501,9 +541,11 @@ bool melee_attack::handle_phase_hit()
     else if (needs_message)
     {
         attack_verb = attacker->is_player()
+            && (you.species != SP_MONSTER || attk_type == AT_HIT)
                       ? attack_verb
                       : attacker->conj_verb(mons_attack_verb());
 
+        // why is this separate from announce_hit?
         // TODO: Clean this up if possible, checking atype for do / does is ugly
         mprf("%s %s %s but %s no damage.",
              attacker->name(DESC_THE).c_str(),
@@ -568,6 +610,7 @@ bool melee_attack::handle_phase_damaged()
 bool melee_attack::handle_phase_aux()
 {
     if (attacker->is_player()
+        && !you.species.is_genus_monster() // use multi-attacks instead
         && !cleaving
         && wu_jian_attack != WU_JIAN_ATTACK_TRIGGERED_AUX
         && !is_projected)
@@ -593,6 +636,79 @@ bool melee_attack::handle_phase_aux()
     return true;
 }
 
+/*
+ * Devour a monster whole!
+ *
+ * @param defender  The monster in question.
+ */
+static void _hydra_devour(monster &victim)
+{
+    mprf("You devour %s!",
+         victim.name(DESC_THE).c_str());
+
+    // give a clearer message for eating invisible things
+    if (!you.can_see(victim))
+    {
+        mprf("It tastes like %s.",
+             mons_type_name(mons_genus(victim.type), DESC_PLAIN).c_str());
+        // this could be the actual creature name, but it feels more
+        // 'flavourful' this way??
+        // feel free to just use the actual creature name if this has buggy
+        // edge cases or such
+    }
+    if (victim.has_ench(ENCH_STICKY_FLAME))
+        mprf("Spicy!");
+
+    // healing
+    if (!you.duration[DUR_DEATHS_DOOR])
+    {
+        const int healing = 1 + victim.get_experience_level() * 3 / 4
+                              + random2(victim.get_experience_level() * 3 / 4);
+        you.heal(healing);
+        calc_hp();
+        canned_msg(MSG_GAIN_HEALTH);
+        dprf("healed for %d (%d hd)", healing, victim.get_experience_level());
+    }
+
+    // and devour the corpse.
+    victim.props[NEVER_CORPSE_KEY] = true;
+}
+
+static void _hydra_consider_devouring(monster &defender)
+{
+    ASSERT(!crawl_state.game_is_arena());
+
+    // shapeshifters are mutagenic
+    if (defender.is_shapeshifter())
+    {
+        // handle this carefully, so the player knows what's going on
+        mprf("You spit out %s as %s %s & %s in your mouth!",
+             defender.name(DESC_THE).c_str(),
+             defender.pronoun(PRONOUN_SUBJECTIVE).c_str(),
+             conjugate_verb("twist", defender.pronoun_plurality()).c_str(),
+             conjugate_verb("change", defender.pronoun_plurality()).c_str());
+        return;
+    }
+
+    // Don't eat orcs, even heretics might be worth a miracle
+    if (you_worship(GOD_BEOGH)
+        && mons_genus(mons_species(defender.type)) == MONS_ORC)
+    {
+        return;
+    }
+
+    // can't eat enemies that leave no corpses...
+    if (!mons_class_can_leave_corpse(mons_species(defender.type))
+        || defender.is_summoned()
+        || defender.flags & MF_HARD_RESET)
+    {
+        return;
+    }
+
+    // chow down.
+    _hydra_devour(defender);
+}
+
 /**
  * Handle effects that fire when the defender (the target of the attack) is
  * killed.
@@ -601,6 +717,14 @@ bool melee_attack::handle_phase_aux()
  */
 bool melee_attack::handle_phase_killed()
 {
+    if (attacker->is_player()
+        && mons_genus(you.species) == MONS_HYDRA
+        && defender->is_monster() // better safe than sorry
+        && defender->type != MONS_NO_MONSTER) // already reset
+    {
+        _hydra_consider_devouring(*defender->as_monster());
+    }
+
     // Wyrmbane needs to be notified of deaths, including ones due to aux
     // attacks, but other users of melee_effects() don't want to possibly
     // be called twice. Adding another entry for a single artefact would
@@ -1002,6 +1126,15 @@ public:
         return base_dam;
     }
 
+    int get_brand() const override
+    {
+        // TODO: anything else? more general way of handling such cases?
+        // Ideally, would actually check the monster attacks.
+        return you.species.mon_species == MONS_BOG_BODY
+                ? SPWPN_FREEZING
+                : SPWPN_NORMAL;
+    }
+
     string get_name() const override
     {
         if (you.form == transformation::blade_hands)
@@ -1190,10 +1323,35 @@ bool melee_attack::player_aux_unarmed()
 {
     unwind_var<brand_type> save_brand(damage_brand);
 
+    // handled as distinct melee attacks
+    if (you.species.genus() == SP_MONSTER)
+        return false;
+
+    vector<int> extras;
+
+    // deep trolls, iron trolls, moon trolls, other troll uniques.
+    // technically base monster trolls have an extra claw attack as well, but
+    // let's treat them just like players.
+    if (mons_genus(you.species.mon_species) == MONS_TROLL
+        && you.species.mon_species != MONS_TROLL)
+    {
+        extras.push_back(UNAT_PUNCH);
+    }
+
+    sort(extras.begin(), extras.end());
+    reverse(extras.begin(), extras.end());
+
     for (int i = UNAT_FIRST_ATTACK; i <= UNAT_LAST_ATTACK; ++i)
     {
         if (!defender->alive())
             break;
+
+        if (i - 1 >= UNAT_FIRST_ATTACK
+            && extras.size() && extras.back() == i - 1)
+        {
+            extras.pop_back();
+            i--;
+        }
 
         unarmed_attack_type atk = static_cast<unarmed_attack_type>(i);
 
@@ -1273,52 +1431,65 @@ bool melee_attack::player_aux_apply(unarmed_attack_type atk)
         {
             player_announce_aux_hit();
 
-            if (damage_brand == SPWPN_ACID)
-                defender->splash_with_acid(&you, 3);
+            // if (damage_brand == SPWPN_ACID)
+            //     defender->splash_with_acid(&you, 3);
 
-            if (damage_brand == SPWPN_VENOM && coinflip())
-                poison_monster(defender->as_monster(), &you);
-
+            if (damage_brand == SPWPN_VENOM)
+            {
+                if (coinflip()) // different from regular attacks
+                    poison_monster(defender->as_monster(), &you);
+            }
             // Normal vampiric biting attack, not if already got stabbing special.
             if (damage_brand == SPWPN_VAMPIRISM
                 && you.has_mutation(MUT_VAMPIRISM)
                 && (!stab_attempt || stab_bonus <= 0))
             {
-                _player_vampire_draws_blood(defender->as_monster(), damage_done);
-            }
-
-            if (damage_brand == SPWPN_ANTIMAGIC && you.has_mutation(MUT_ANTIMAGIC_BITE)
-                && damage_done > 0)
-            {
-                const bool spell_user = defender->antimagic_susceptible();
-
-                antimagic_affects_defender(damage_done * 32);
-
-                // MP drain suppressed under Pakellas, but antimagic still applies.
-                if (!have_passive(passive_t::no_mp_regen) || spell_user)
+                if (!stab_attempt || stab_bonus <= 0)
                 {
-                    mprf("You %s %s %s.",
-                         have_passive(passive_t::no_mp_regen) ? "disrupt" : "drain",
-                         defender->as_monster()->pronoun(PRONOUN_POSSESSIVE).c_str(),
-                         spell_user ? "magic" : "power");
+                    _player_vampire_draws_blood(defender->as_monster(),
+                        damage_done);
                 }
-
-                if (!have_passive(passive_t::no_mp_regen)
-                    && you.magic_points != you.max_magic_points
-                    && !defender->as_monster()->is_summoned()
-                    && !mons_is_firewood(*defender->as_monster()))
+            }
+            else if (damage_brand == SPWPN_ANTIMAGIC
+                        && you.has_mutation(MUT_ANTIMAGIC_BITE))
+            {
+                if (damage_done > 0)
                 {
-                    int drain = random2(damage_done * 2) + 1;
-                    // Augment mana drain--1.25 "standard" effectiveness at 0 mp,
-                    // 0.25 at mana == max_mana
-                    drain = (int)((1.25 - you.magic_points / you.max_magic_points)
-                                  * drain);
-                    if (drain)
+                    const bool spell_user = defender->antimagic_susceptible();
+
+                    antimagic_affects_defender(damage_done * 32);
+
+                    // MP drain suppressed under Pakellas, but antimagic still applies.
+                    if (!have_passive(passive_t::no_mp_regen) || spell_user)
                     {
-                        mpr("You feel invigorated.");
-                        inc_mp(drain);
+                        mprf("You %s %s %s.",
+                             have_passive(passive_t::no_mp_regen) ? "disrupt" : "drain",
+                             defender->as_monster()->pronoun(PRONOUN_POSSESSIVE).c_str(),
+                             spell_user ? "magic" : "power");
+                    }
+
+                    if (!have_passive(passive_t::no_mp_regen)
+                        && you.magic_points != you.max_magic_points
+                        && !defender->as_monster()->is_summoned()
+                        && !mons_is_firewood(*defender->as_monster()))
+                    {
+                        int drain = random2(damage_done * 2) + 1;
+                        // Augment mana drain--1.25 "standard" effectiveness at 0 mp,
+                        // 0.25 at mana == max_mana
+                        drain = (int)((1.25 - you.magic_points / you.max_magic_points)
+                                      * drain);
+                        if (drain)
+                        {
+                            mpr("You feel invigorated.");
+                            inc_mp(drain);
+                        }
                     }
                 }
+            }
+            else
+            {
+                // TODO: need to carefully test this for regular species
+                apply_damage_brand();
             }
         }
         else // no damage was done
@@ -1647,6 +1818,19 @@ void melee_attack::set_attack_verb(int damage)
             else
                 attack_verb = "thrash";
         }
+        else if (you.has_mutation(MUT_NO_GRASPING) && you.species.is_monster())
+        {
+            // player monsters without hands
+            // TODO: more customization here
+            if (damage < HIT_WEAK)
+                attack_verb = "hit";
+            else if (damage < HIT_MED)
+                attack_verb = "bludgeon";
+            else if (damage < HIT_STRONG)
+                attack_verb = "batter";
+            else
+                attack_verb = "thrash";
+        }
         else
         {
             if (damage < HIT_WEAK)
@@ -1800,8 +1984,14 @@ bool melee_attack::consider_decapitation(int dam, int damage_type)
     if (!(defender->holiness() & MH_NATURAL))
         return false;
 
+    // a player hydra with head chopping needs some tedious enemy management
+    // stuff for optimal play that probably wouldn't fly in normal dcss, but
+    // so be it.
+    monster *chopee = defender->is_player() ? you.monster_instance.get()
+                                            : defender->as_monster();
+
     // What's the largest number of heads the defender can have?
-    const int limit = defender->type == MONS_LERNAEAN_HYDRA ? 27
+    const int limit = chopee->type == MONS_LERNAEAN_HYDRA ? 27
                                                             : MAX_HYDRA_HEADS;
 
     if (attacker->damage_brand() == SPWPN_FLAMING)
@@ -1815,8 +2005,10 @@ bool melee_attack::consider_decapitation(int dam, int damage_type)
     if (heads >= limit - 1)
         return false; // don't overshoot the head limit!
 
-    simple_monster_message(*defender->as_monster(), " grows two more!");
-    defender->as_monster()->num_heads += 2;
+    mprf("%s %s two more!",
+        defender_name(true).c_str(),
+        defender->conj_verb("grow").c_str());
+    chopee->num_heads += 2;
     defender->heal(8 + random2(8));
 
     return false;
@@ -1830,6 +2022,8 @@ bool melee_attack::consider_decapitation(int dam, int damage_type)
  */
 static bool actor_can_lose_heads(const actor* defender)
 {
+    if (defender->is_player() && you.monster_instance)
+        defender = you.monster_instance.get();
     if (defender->is_monster()
         && defender->as_monster()->has_hydra_multi_attack()
         && defender->type != MONS_SPECTRAL_THING
@@ -1900,7 +2094,7 @@ bool melee_attack::attack_chops_heads(int dam, int dam_type)
 void melee_attack::decapitate(int dam_type)
 {
     // Player hydras don't gain or lose heads.
-    ASSERT(defender->is_monster());
+    ASSERT(defender->is_monster() || you.species == SP_MONSTER);
 
     const char *verb = nullptr;
 
@@ -1918,7 +2112,10 @@ void melee_attack::decapitate(int dam_type)
         verb = RANDOM_ELEMENT(slice_verbs);
     }
 
-    int heads = defender->heads();
+    monster *chopee = defender->is_player() ? you.monster_instance.get()
+                                            : defender->as_monster();
+
+    int heads = chopee->heads();
     if (heads == 1) // will be zero afterwards
     {
         if (defender_visible)
@@ -1929,7 +2126,7 @@ void melee_attack::decapitate(int dam_type)
                  apostrophise(defender_name(true)).c_str());
         }
 
-        if (!defender->is_summoned())
+        if (!defender->is_summoned() && defender->is_monster())
         {
             bleed_onto_floor(defender->pos(), defender->type,
                              defender->as_monster()->hit_points, true);
@@ -1947,9 +2144,11 @@ void melee_attack::decapitate(int dam_type)
              atk_name(DESC_THE).c_str(),
              attacker->conj_verb(verb).c_str(),
              apostrophise(defender_name(true)).c_str());
+        if (defender->is_player())
+            you.redraw_title = true;
     }
 
-    defender->as_monster()->num_heads--;
+    chopee->num_heads--;
 }
 
 /**
@@ -1961,8 +2160,12 @@ void melee_attack::attacker_sustain_passive_damage()
     if (!defender->alive())
         return;
 
-    if (!mons_class_flag(defender->type, M_ACID_SPLASH))
+    if (   !mons_class_flag(defender->type, M_ACID_SPLASH)
+        && !(defender->is_player() && you.species.is_monster() &&
+             mons_class_flag(you.species.mon_species, M_ACID_SPLASH)))
+    {
         return;
+    }
 
     if (attacker->res_acid() >= 3)
         return;
@@ -2227,6 +2430,7 @@ bool melee_attack::player_good_stab()
 {
     return wpn_skill == SK_SHORT_BLADES
            || you.get_mutation_level(MUT_PAWS)
+           || attk_flavour == AF_SHADOWSTAB
            || player_equip_unrand(UNRAND_HOOD_ASSASSIN)
               && (!weapon || is_melee_weapon(*weapon));
 }
@@ -2265,12 +2469,23 @@ string melee_attack::mons_attack_verb()
         "kneecap"
     };
 
-    if (attacker->type == MONS_KILLER_KLOWN && attk_type == AT_HIT)
+    if ((attacker->is_player() && you.species.mon_species == MONS_KILLER_KLOWN
+        || attacker->type == MONS_KILLER_KLOWN) && attk_type == AT_HIT)
+    {
         return RANDOM_ELEMENT(klown_attack);
+    }
 
     //XXX: then why give them it in the first place?
     if (attk_type == AT_TENTACLE_SLAP && mons_is_tentacle(attacker->type))
         return "slap";
+
+    if (attk_type == AT_NONE)
+    {
+        // monsters with no attack, when turned into player species, get at
+        // least something.
+        ASSERT(you.species == SP_MONSTER);
+        return "thump";
+    }
 
     return mon_attack_name(attk_type);
 }
@@ -2311,6 +2526,18 @@ void melee_attack::announce_hit()
     }
     else
     {
+        // don't announce 0-damage hits where flavor triggered; for all of
+        // these there should already be a message of some kind. (Most
+        // important for AF_PURE_FIRE, which never does regular damage.)
+        if (flavour_triggers_damageless(attk_flavour) && attk_damage == 0)
+            return;
+
+        if (you.species.is_monster()
+            && (attk_type != AT_HIT
+                || you.species.mon_species == MONS_KILLER_KLOWN))
+        {
+            attack_verb = attacker->conj_verb(mons_attack_verb()).c_str();
+        }
         if (!verb_degree.empty() && verb_degree[0] != ' '
             && verb_degree[0] != ',' && verb_degree[0] != '\'')
         {
@@ -2347,15 +2574,17 @@ bool melee_attack::mons_do_poison()
                             attacker->name(DESC_PLAIN));
     }
 
-    if (!defender->poison(attacker, amount))
-        return false;
-
     if (needs_message)
     {
-        mprf("%s poisons %s!",
+        mprf("%s %s %s!",
                 atk_name(DESC_THE).c_str(),
+                attacker->conj_verb("poison").c_str(),
                 defender_name(true).c_str());
     }
+
+    // TODO: before or after messaging? merge conflict with trunk
+    if (!defender->poison(attacker, amount))
+        return false;
 
     return true;
 }
@@ -2412,6 +2641,9 @@ static void _print_resist_messages(actor* defender, int base_damage,
 
 bool melee_attack::mons_attack_effects()
 {
+    if (attacker->is_player() && you.species != SP_MONSTER)
+        return true;
+
     // may have died earlier, due to e.g. pain bond
     // we could continue with the rest of their attack, but it's a minefield
     // of potential crashes. so, let's not.
@@ -2485,6 +2717,9 @@ void melee_attack::mons_apply_attack_flavour()
     if (flavour == AF_CHAOTIC)
         flavour = random_chaos_attack_flavour();
 
+    // for now, use hit dice for monster players. This is really just xl.
+    // TODO: should this scale differently? 27 is usually a *lot*. Maybe use
+    // 1dHD?
     const int base_damage = flavour_damage(flavour, attacker->get_hit_dice());
 
     // Note that if damage_done == 0 then this code won't be reached
@@ -2497,7 +2732,7 @@ void melee_attack::mons_apply_attack_flavour()
         defender->expose_to_element(BEAM_MISSILE, 2);
         break;
 
-    case AF_MUTATE:
+    case AF_MUTATE: // TODO: need to test; mnoleg aux attack only
         if (one_chance_in(4))
         {
             defender->malmutate(you.can_see(*attacker) ?
@@ -2607,6 +2842,8 @@ void melee_attack::mons_apply_attack_flavour()
     case AF_DRAIN_STR:
     case AF_DRAIN_INT:
     case AF_DRAIN_DEX:
+        // TODO: this is a noop for monster defenders; should something happen
+        // for player monsters?
         if (one_chance_in(20) || one_chance_in(3))
         {
             stat_type drained_stat = (flavour == AF_DRAIN_STR ? STAT_STR :
@@ -2633,10 +2870,15 @@ void melee_attack::mons_apply_attack_flavour()
             if (defender->is_unbreathing())
                 break;
 
-            monster *attkmon = attacker->as_monster();
-            attkmon->set_hit_dice(attkmon->get_experience_level() - 1);
-            if (attkmon->get_experience_level() <= 0)
-                attacker->as_monster()->suicide();
+            if (!attacker->is_player())
+            {
+                // TODO: this is pretty weird for players, double check what
+                // the form behavior is
+                monster *attkmon = attacker->as_monster();
+                attkmon->set_hit_dice(attkmon->get_experience_level() - 1);
+                if (attkmon->get_experience_level() <= 0 && !attacker->is_player())
+                    attacker->as_monster()->suicide();
+            }
 
             if (defender_visible)
             {
@@ -2696,7 +2938,8 @@ void melee_attack::mons_apply_attack_flavour()
         break;
 
     case AF_CORRODE:
-        defender->corrode_equipment(atk_name(DESC_THE).c_str());
+        defender->corrode_equipment(attacker->is_player() ? "Your attack"
+                : atk_name(DESC_THE).c_str());
         break;
 
     case AF_DISTORT:
@@ -2718,7 +2961,7 @@ void melee_attack::mons_apply_attack_flavour()
         defender->go_berserk(false);
         break;
 
-    case AF_STICKY_FLAME:
+    case AF_STICKY_FLAME: // TODO: test red very ugly things
         mons_do_napalm();
         break;
 
@@ -2727,6 +2970,7 @@ void melee_attack::mons_apply_attack_flavour()
         break;
 
     case AF_STEAL:
+        // TODO: implement for player maurice
         // Ignore monsters, for now.
         if (!defender->is_player())
             break;
@@ -2745,15 +2989,18 @@ void melee_attack::mons_apply_attack_flavour()
                  attacker->conj_verb("sear").c_str(),
                  defender_name(true).c_str(),
                  attack_strength_punctuation(special_damage).c_str());
-
         }
         break;
 
     case AF_ANTIMAGIC:
+        // vinestalker effects are entirely handled by player species code,
+        // including monster vinestalkers.
+        if (you.species.genus() == SP_VINE_STALKER)
+            break;
         antimagic_affects_defender(attacker->get_hit_dice() * 12);
 
-        if (mons_genus(attacker->type) == MONS_VINE_STALKER
-            && attacker->is_monster())
+        if (attacker->is_monster()
+            && mons_genus(attacker->type) == MONS_VINE_STALKER)
         {
             const bool spell_user = defender->antimagic_susceptible();
 
@@ -2782,6 +3029,8 @@ void melee_attack::mons_apply_attack_flavour()
         break;
 
     case AF_PAIN:
+        // TODO: should this rely entirely on necro skill for player monsters?
+        // maybe give them a necro boost?
         pain_affects_defender();
         break;
 
@@ -2791,6 +3040,10 @@ void melee_attack::mons_apply_attack_flavour()
         break;
 
     case AF_CRUSH:
+        // handle naga constriction entirely in player code
+        // TODO: make sure it somehow is scaled for e.g. nagaraja?
+        if (attacker->is_player() && you.species.genus() == SP_NAGA)
+            break;
         if (needs_message)
         {
             mprf("%s %s %s.",
@@ -2838,7 +3091,8 @@ void melee_attack::mons_apply_attack_flavour()
         break;
 
     case AF_PURE_FIRE:
-        if (attacker->type == MONS_FIRE_VORTEX)
+        // TODO: player fire vortices?
+        if (!attacker->is_player() && attacker->type == MONS_FIRE_VORTEX)
             attacker->as_monster()->suicide(-10);
 
         special_damage = defender->apply_ac(base_damage, 0, ac_type::half);
@@ -2895,17 +3149,25 @@ void melee_attack::mons_apply_attack_flavour()
         break;
 
     case AF_SHADOWSTAB:
-        attacker->as_monster()->del_ench(ENCH_INVIS, true);
+        if (attacker->is_player())
+            you.duration[DUR_INVIS] = 0;
+        else
+            attacker->as_monster()->del_ench(ENCH_INVIS, true);
         break;
 
     case AF_DROWN:
-        if (attacker->type == MONS_DROWNED_SOUL)
+        // TODO: player drowned souls?
+        if (!attacker->is_player() && attacker->type == MONS_DROWNED_SOUL)
             attacker->as_monster()->suicide(-1000);
 
         if (defender->res_water_drowning() <= 0)
         {
             special_damage = attacker->get_hit_dice() * 3 / 4
                             + random2(attacker->get_hit_dice() * 3 / 4);
+
+            // otherwise, player drowned souls don't do any damage at xl1:
+            if (attacker->is_player())
+                special_damage = max(special_damage, 1);
             special_damage_flavour = BEAM_WATER;
             kill_type = KILLED_BY_WATER;
 

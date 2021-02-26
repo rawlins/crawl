@@ -86,6 +86,22 @@ bool attack::handle_phase_blocked()
 
 bool attack::handle_phase_damaged()
 {
+    if (attacker->is_player() && you.species.is_genus_monster())
+    {
+        // scale damage relative to attack 0. That  is, damage for the player
+        // is determined by the relevant skill (usually unarmed), but we take
+        // the monster data as a guideline for how powerful extra attacks
+        // should be relative to the "primary" attack.
+        mon_attack_def primary = mons_attack_spec(*you.monster_instance,
+                                           0,
+                                           false);
+
+        const int ratio = (attk_damage + 1) * 1000 / primary.damage;
+        dprf("Scaling attack damage from %d to %d, ratio %d", damage_done, damage_done * ratio / 1000, ratio);
+        damage_done = damage_done * ratio / 1000;
+        if (damage_done == 0)
+            return false;
+    }
     // We have to check in_bounds() because removed kraken tentacles are
     // temporarily returned to existence (without a position) when they
     // react to damage.
@@ -112,11 +128,9 @@ bool attack::handle_phase_damaged()
         if (damage_done)
             player_exercise_combat_skills();
     }
-    else
-    {
-        if (!mons_attack_effects())
-            return false;
-    }
+
+    if (!mons_attack_effects())
+        return false;
 
     // It's okay if a monster took lethal damage, but we should stop
     // the combat if it was already reset (e.g. a spectral weapon that
@@ -417,34 +431,47 @@ void attack::init_attack(skill_type unarmed_skill, int attack_number)
     defender_visible   = defender && defender->observable();
     needs_message      = (attacker_visible || defender_visible);
 
-    if (attacker->is_monster())
+    // the use of species vs genus here is intentional: it allows
+    // for things like necrophage rotting attacks to work.
+    const bool monsplayer_attacker =
+                            you.species.is_monster() && attacker->is_player();
+
+    if (monsplayer_attacker || attacker->is_monster())
     {
-        mon_attack_def mon_attk = mons_attack_spec(*attacker->as_monster(),
+        // set up an attack type / flavour for player monsters
+        const monster *a = monsplayer_attacker ? you.monster_instance.get()
+                                          : attacker->as_monster();
+        mon_attack_def mon_attk = mons_attack_spec(*a,
                                                    attack_number,
                                                    false);
 
         attk_type       = mon_attk.type;
         attk_flavour    = mon_attk.flavour;
 
+        // we set this for player monsters even though it mostly isn't used.
+        // one exception: AF_HOLY scales based on this value. Ideally we would
+        // use player damage instead, but it's kind of tricky to do that given
+        // the sequencing.
         // Don't scale damage for YOU_FAULTLESS etc.
-        if (attacker->get_experience_level() == 0)
+        if (a->get_experience_level() == 0 || monsplayer_attacker)
             attk_damage = mon_attk.damage;
         else
         {
-            attk_damage = div_rand_round(mon_attk.damage
-                                             * attacker->get_hit_dice(),
-                                         attacker->get_experience_level());
+            attk_damage = div_rand_round(
+                mon_attk.damage * a->get_hit_dice(), // drained monsters
+                a->get_experience_level());
         }
 
-        if (attk_type == AT_WEAP_ONLY)
+        if (!monsplayer_attacker && attk_type == AT_WEAP_ONLY)
         {
-            int weap = attacker->as_monster()->inv[MSLOT_WEAPON];
+            // statues only, ignore for player monsters
+            int weap = a->as_monster()->inv[MSLOT_WEAPON];
             if (weap == NON_ITEM || is_range_weapon(env.item[weap]))
                 attk_type = AT_NONE;
             else
                 attk_type = AT_HIT;
         }
-        else if (attk_type == AT_TRUNK_SLAP && attacker->type == MONS_SKELETON)
+        else if (attk_type == AT_TRUNK_SLAP && a->type == MONS_SKELETON)
         {
             // Elephant trunks have no bones inside.
             attk_type = AT_NONE;
@@ -990,6 +1017,12 @@ void attack::stab_message()
         break;
     case 2:
     case 1:
+        if (attk_flavour == AF_SHADOWSTAB)
+        {
+            mprf("You emerge from the shadows to strike %s!",
+                defender->name(DESC_THE).c_str());
+            break;
+        }
         if (you.has_mutation(MUT_PAWS) && coinflip())
         {
             mprf("You pounce on the unaware %s!",
@@ -1228,6 +1261,14 @@ int attack::calc_damage()
 
         potential_damage = using_weapon() || wpn_skill == SK_THROWING
             ? weapon_damage() : calc_base_unarmed_damage();
+
+        if (flavour_triggers_damageless(attk_flavour) && attk_damage == 0)
+        {
+            // special attack flavours that don't or might not do ordinary
+            // damage.
+            ASSERT(you.species == SP_MONSTER);
+            potential_damage = 0;
+        }
 
         potential_damage = player_stat_modify_damage(potential_damage);
 
@@ -1623,8 +1664,12 @@ bool attack::apply_damage_brand(const char *what)
 
     // Preserve Nessos's brand stacking in a hacky way -- but to be fair, it
     // was always a bit of a hack.
-    if (attacker->type == MONS_NESSOS && weapon && is_range_weapon(*weapon))
+    if ((attacker->is_monster() && attacker->type == MONS_NESSOS
+         || attacker->is_player() && you.species == MONS_NESSOS)
+        && weapon && is_range_weapon(*weapon))
+    {
         apply_poison_damage_brand();
+    }
 
     if (special_damage > 0)
         inflict_damage(special_damage, special_damage_flavour);
@@ -1674,7 +1719,8 @@ int attack::player_stab_weapon_bonus(int damage)
     if (player_good_stab())
     {
         // We might be unarmed if we're using the hood of the Assassin.
-        const bool extra_good = using_weapon() && weapon->sub_type == WPN_DAGGER;
+        const bool extra_good = using_weapon() && weapon->sub_type == WPN_DAGGER
+                                || attk_flavour == AF_SHADOWSTAB;
         int bonus = you.dex() * (stab_skill + 100) / (extra_good ? 500 : 1000);
 
         bonus   = stepdown_value(bonus, 10, 10, 30, 30);
@@ -1734,7 +1780,16 @@ void attack::player_stab_check()
         return;
     }
 
-    stab_type st = find_stab_type(&you, *defender);
+    // if the player could stab from the shadows but didn't, adjust to normal
+    // flavour.
+    if (attk_flavour == AF_SHADOWSTAB && defender->can_see(you))
+        attk_flavour = AF_PLAIN;
+
+    // stabbing from the shadows is always a sleep stab
+    stab_type st = attk_flavour == AF_SHADOWSTAB
+                        ? STAB_SLEEPING
+                        : find_stab_type(&you, *defender);
+
     // Find stab type is also used for displaying information about monsters,
     // so upgrade the stab type for !stab and the Spriggan's Knife here
     if (using_weapon()
@@ -1747,6 +1802,7 @@ void attack::player_stab_check()
     stab_bonus = stab_bonus_denom(st);
 
     // See if we need to roll against dexterity / stabbing.
+    // sleeping, paralysed, petrified give 1; no stab = 0.
     if (stab_attempt && stab_bonus > 1)
     {
         stab_attempt = x_chance_in_y(you.skill_rdiv(wpn_skill, 1, 2)

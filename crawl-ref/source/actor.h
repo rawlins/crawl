@@ -42,6 +42,7 @@ public:
 
     virtual bool is_player() const = 0;
     bool is_monster() const { return !is_player(); }
+    bool is_player_proxy() const;
     virtual monster* as_monster() = 0;
     virtual player* as_player() = 0;
     virtual const monster* as_monster() const = 0;

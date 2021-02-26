@@ -262,6 +262,33 @@ string conjugate_verb(const string &verb, bool plural)
     return pluralise(verb);
 }
 
+string deconjugate_verb(const string &verb)
+{
+    if (!verb.empty() && verb[0] == '!')
+        return verb.substr(1);
+
+    // Conjugate the first word of a phrase (e.g. "release spores at")
+    const size_t space = verb.find(" ");
+    if (space != string::npos)
+    {
+        return deconjugate_verb(verb.substr(0, space))
+               + verb.substr(space);
+    }
+
+    // Only one verb in English differs between infinitive and plural.
+    if (verb == "are" || verb == "is" || verb == "be")
+        return "is";
+
+    if (verb == "have" || verb == "has")
+        return "have";
+
+    if (ends_with(verb, "s"))
+        return verb.substr(0, verb.size() - 1);
+
+    // TODO: reverse anything else in pluralise?
+    return verb;
+}
+
 static const char * const _pronoun_declension[][NUM_PRONOUN_CASES] =
 {
     // subj  poss    refl        obj

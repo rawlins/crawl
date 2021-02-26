@@ -2083,10 +2083,14 @@ void monster::struggle_against_net()
 
 static void _ancient_zyme_sicken(monster* mons)
 {
-    if (is_sanctuary(mons->pos()))
+    const bool player = mons && mons->is_player_proxy();
+    const coord_def target_pos = player ? you.pos() : mons->pos();
+
+    if (is_sanctuary(target_pos))
         return;
 
-    if (!is_sanctuary(you.pos())
+    if (!player
+        && !is_sanctuary(you.pos())
         && !mons->wont_attack()
         && !you.res_miasma()
         && !you.duration[DUR_DIVINE_STAMINA]
@@ -2115,11 +2119,12 @@ static void _ancient_zyme_sicken(monster* mons)
         }
     }
 
-    for (radius_iterator ri(mons->pos(), LOS_RADIUS, C_SQUARE); ri; ++ri)
+    // why do torpor and zyme iterators work differently?
+    for (radius_iterator ri(target_pos, LOS_RADIUS, C_SQUARE); ri; ++ri)
     {
         monster *m = monster_at(*ri);
         if (m && !mons_aligned(mons, m)
-            && cell_see_cell(mons->pos(), *ri, LOS_SOLID_SEE)
+            && cell_see_cell(target_pos, *ri, LOS_SOLID_SEE)
             && !is_sanctuary(*ri))
         {
             m->sicken(2 * you.time_taken);
@@ -2137,16 +2142,20 @@ static void _torpor_snail_slow(monster* mons)
     // XXX: might be nice to refactor together with _ancient_zyme_sicken().
     // XXX: also with torpor_slowed().... so many duplicated checks :(
 
-    if (is_sanctuary(mons->pos())
-        || mons->attitude != ATT_HOSTILE
+    const bool player = mons && mons->is_player_proxy();
+    const coord_def target_pos = player ? you.pos() : mons->pos();
+
+    if (is_sanctuary(target_pos)
+        || !player && mons->attitude != ATT_HOSTILE
         || mons->has_ench(ENCH_CHARM))
     {
         return;
     }
 
-    if (!is_sanctuary(you.pos())
+    if (!player
+        && !is_sanctuary(you.pos())
         && !you.stasis()
-        && cell_see_cell(you.pos(), mons->pos(), LOS_SOLID_SEE))
+        && cell_see_cell(you.pos(), target_pos, LOS_SOLID_SEE))
     {
         if (!you.duration[DUR_SLOW])
         {
@@ -2159,59 +2168,68 @@ static void _torpor_snail_slow(monster* mons)
         you.props[TORPOR_SLOWED_KEY] = true;
     }
 
-    for (monster_near_iterator ri(mons->pos(), LOS_SOLID_SEE); ri; ++ri)
+    // TODO: as implemented, this is not very exciting as a player, because you
+    // are also slow, usually slower than the monster.
+    for (monster_near_iterator ri(target_pos, LOS_SOLID_SEE); ri; ++ri)
     {
         monster *m = *ri;
         if (m && !mons_aligned(mons, m) && !m->stasis()
             && !mons_is_conjured(m->type) && !m->is_stationary()
             && !is_sanctuary(m->pos()))
         {
-            m->add_ench(mon_enchant(ENCH_SLOW, 0, mons, 1));
+            m->add_ench(mon_enchant(ENCH_SLOW, 0, &you, 1));
             m->props[TORPOR_SLOWED_KEY] = true;
         }
     }
 }
 
-static void _post_monster_move(monster* mons)
+void post_monster_move(monster* mons)
 {
     if (invalid_monster(mons))
         return;
 
-    mons->handle_constriction();
+    const bool player = mons && mons->is_player_proxy();
+    const coord_def target_pos = player ? you.pos() : mons->pos();
 
-    if (mons->has_ench(ENCH_HELD))
-        mons->struggle_against_net();
+    if (!player)
+    {
+        mons->handle_constriction();
+
+        if (mons->has_ench(ENCH_HELD))
+            mons->struggle_against_net();
+    }
 
     if (mons->type == MONS_ANCIENT_ZYME)
         _ancient_zyme_sicken(mons);
-
-    if (mons->type == MONS_TORPOR_SNAIL)
+    else if (mons->type == MONS_TORPOR_SNAIL)
         _torpor_snail_slow(mons);
 
     if (mons->type == MONS_WATER_NYMPH
         || mons->type == MONS_ELEMENTAL_WELLSPRING)
     {
-        for (adjacent_iterator ai(mons->pos(), false); ai; ++ai)
+        for (adjacent_iterator ai(target_pos, false); ai; ++ai)
             if (feat_has_solid_floor(env.grid(*ai))
-                && (coinflip() || *ai == mons->pos()))
+                && (coinflip() || *ai == target_pos))
             {
                 if (env.grid(*ai) != DNGN_SHALLOW_WATER
                     && env.grid(*ai) != DNGN_FLOOR
                     && you.see_cell(*ai))
                 {
                     mprf("%s watery aura covers %s.",
-                         apostrophise(mons->name(DESC_THE)).c_str(),
+                         player ? "Your"
+                                : apostrophise(mons->name(DESC_THE)).c_str(),
                          feature_description_at(*ai, false, DESC_THE).c_str());
                 }
                 temp_change_terrain(*ai, DNGN_SHALLOW_WATER,
                                     random_range(50, 80),
-                                    TERRAIN_CHANGE_FLOOD, mons);
+                                    TERRAIN_CHANGE_FLOOD,
+                                    player ? nullptr : mons);
             }
     }
-
-    if (mons->type == MONS_GUARDIAN_GOLEM)
+    else if (mons->type == MONS_GUARDIAN_GOLEM)
         guardian_golem_bond(*mons);
 
+    // TODO: player version
     // A rakshasa that has regained full health dismisses its emergency clones
     // (if they're somehow still alive) and regains the ability to summon new ones.
     if (mons->type == MONS_RAKSHASA && mons->hit_points == mons->max_hit_points
@@ -2226,14 +2244,8 @@ static void _post_monster_move(monster* mons)
         }
     }
 
+    // TODO: check player asmodeus / bai suzhen
     update_mons_cloud_ring(mons);
-
-    const item_def * weapon = mons->mslot_item(MSLOT_WEAPON);
-    if (weapon && get_weapon_brand(*weapon) == SPWPN_SPECTRAL
-        && !mons_is_avatar(mons->type))
-    {
-        // TODO: implement monster spectral ego
-    }
 
     if (mons->foe != MHITNOT && mons_is_wandering(*mons) && mons_is_batty(*mons))
     {
@@ -2246,7 +2258,7 @@ static void _post_monster_move(monster* mons)
             mons->behaviour = BEH_SEEK;
     }
 
-    if (mons->type != MONS_NO_MONSTER && mons->hit_points < 1)
+    if (!player && mons->type != MONS_NO_MONSTER && mons->hit_points < 1)
         monster_die(*mons, KILL_MISC, NON_MONSTER);
 }
 
@@ -2366,7 +2378,7 @@ void handle_monsters(bool with_noise)
         if (oldspeed == mon->speed_increment)
         {
             handle_monster_move(mon);
-            _post_monster_move(mon);
+            post_monster_move(mon);
             fire_final_effects();
         }
 
@@ -2398,6 +2410,9 @@ static bool _jelly_divide(monster& parent)
     if (!mons_class_flag(parent.type, M_SPLITS))
         return false;
 
+    const bool player = parent.is_player_proxy();
+
+    // for the player, this seems to give a jelly friend ~ every 8 doors.
     const int reqd = max(parent.get_experience_level() * 8, 50);
     if (parent.hit_points < reqd)
         return false;
@@ -2407,7 +2422,8 @@ static bool _jelly_divide(monster& parent)
     int num_spots = 0;
 
     // First, find a suitable spot for the child {dlb}:
-    for (adjacent_iterator ai(parent.pos()); ai; ++ai)
+    const coord_def parent_pos = player ? you.pos() : parent.pos();
+    for (adjacent_iterator ai(parent_pos); ai; ++ai)
         if (actor_at(*ai) == nullptr && parent.can_pass_through(*ai)
             && one_chance_in(++num_spots))
         {
@@ -2440,7 +2456,9 @@ static bool _jelly_divide(monster& parent)
     child->set_new_monster_id();
     child->move_to_pos(child_spot);
 
-    if (!simple_monster_message(parent, " splits in two!")
+    if (player)
+        mprf("You split in two!");
+    else if (!simple_monster_message(parent, " splits in two!")
         && (player_can_hear(parent.pos()) || player_can_hear(child->pos())))
     {
         mprf(MSGCH_SOUND, "You hear a squelching noise.");
@@ -2452,6 +2470,7 @@ static bool _jelly_divide(monster& parent)
     return true;
 }
 
+// TODO: player jelly eating items?
 // Only Jiyva jellies eat items.
 static bool _monster_eat_item(monster* mons)
 {
@@ -3091,24 +3110,44 @@ static void _find_good_alternate_move(monster* mons,
     }
 }
 
-static void _jelly_grows(monster& mons)
+void monster_jelly_grows(monster& mons)
 {
-    if (player_can_hear(mons.pos()))
+    const bool player = mons.is_player_proxy();
+
+    // player_can_hear doesn't check bounds
+    if (!player && player_can_hear(mons.pos()))
     {
         mprf(MSGCH_SOUND, "You hear a%s slurping noise.",
              you.see_cell(mons.pos()) ? "" : " distant");
     }
 
+    const int old_hp = mons.hit_points;
     const int avg_hp = mons_avg_hp(mons.type);
     mons.hit_points += 5;
     mons.hit_points = min(MAX_MONSTER_HP,
                           min(avg_hp * 4, mons.hit_points));
+    dprf("old hp %d, new hp %d", old_hp, mons.hit_points);
 
     // note here, that this makes jellies "grow" {dlb}:
     if (mons.hit_points > mons.max_hit_points)
         mons.max_hit_points = mons.hit_points;
 
     _jelly_divide(mons);
+
+    if (player)
+    {
+        // For players, this will potentially raise the species hp modifier,
+        // which is based on the monster instance, and therefore increase hp.
+        const int old_max = you.hp_max;
+        calc_hp(true, false);
+        // TODO: messaging when the max is reached? Because this only affects
+        // species hp modifier, the calculation is very coarse and this is hard
+        // to predict.
+        if (old_max < you.hp_max)
+            mprf("You grow.");
+        else if (old_max > you.hp_max)
+            mprf("You shrink.");
+    }
 }
 
 static bool _monster_swaps_places(monster* mon, const coord_def& delta)
@@ -3229,7 +3268,7 @@ static bool _do_move_monster(monster& mons, const coord_def& delta)
             env.grid(f) = DNGN_FLOOR;
             set_terrain_changed(f);
 
-            _jelly_grows(mons);
+            monster_jelly_grows(mons);
 
             if (you.see_cell(f))
             {
@@ -3291,6 +3330,25 @@ static bool _do_move_monster(monster& mons, const coord_def& delta)
     _handle_manticore_barbs(mons);
 
     return true;
+}
+
+void mons_trail_effects(monster *mons, coord_def pos)
+{
+    // pos is treated differently for player vs monster...
+    if (mons_genus(mons->type) == MONS_EFREET
+        || mons->type == MONS_FIRE_ELEMENTAL)
+    {
+        place_cloud(CLOUD_FIRE, pos, 2 + random2(4), mons);
+    }
+
+    if (mons->has_ench(ENCH_ROLLING))
+        place_cloud(CLOUD_DUST, pos, 2, mons);
+
+    if (mons->type == MONS_FOXFIRE)
+        check_place_cloud(CLOUD_FLAME, pos, 2, mons);
+
+    if (mons->type == MONS_CURSE_TOE)
+        place_cloud(CLOUD_MIASMA, pos, 2 + random2(3), mons);
 }
 
 static bool _monster_move(monster* mons)
@@ -3572,20 +3630,7 @@ static bool _monster_move(monster* mons)
         if (!mons->alive())
             return true;
 
-        if (mons_genus(mons->type) == MONS_EFREET
-            || mons->type == MONS_FIRE_ELEMENTAL)
-        {
-            place_cloud(CLOUD_FIRE, mons->pos(), 2 + random2(4), mons);
-        }
-
-        if (mons->has_ench(ENCH_ROLLING))
-            place_cloud(CLOUD_DUST, mons->pos(), 2, mons);
-
-        if (mons->type == MONS_FOXFIRE)
-            check_place_cloud(CLOUD_FLAME, mons->pos(), 2, mons);
-
-        if (mons->type == MONS_CURSE_TOE)
-            place_cloud(CLOUD_MIASMA, mons->pos(), 2 + random2(3), mons);
+        mons_trail_effects(mons, mons->pos());
     }
     else
     {

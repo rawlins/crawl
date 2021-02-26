@@ -288,6 +288,14 @@ static const map<job_type, job_def> job_data =
     { { SK_DODGING, 2 }, { SK_STEALTH, 2 }, { SK_SPELLCASTING, 3 },
       { SK_TRANSLOCATIONS, 1 }, { SK_CONJURATIONS, 1 }, { SK_SUMMONINGS, 1 }, },
 } },
+{ JOB_MONSTER, {
+    "Mo", "Monster",
+    4, 4, 4,
+    { SP_MONSTER },
+    { },
+    WCHOICE_NONE,
+    { { SK_FIGHTING, 1 } }, // TODO: initialize based on monster? need something here to avoid a crash...
+} },
 #if TAG_MAJOR_VERSION == 34
 { JOB_SKALD, {
     "Sk", "Skald",

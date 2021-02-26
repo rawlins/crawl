@@ -835,7 +835,10 @@ void move_player_action(coord_def move)
         }
 
         const coord_def new_targ = you.pos() + move;
-        if (!in_bounds(new_targ) || !you.can_pass_through(new_targ))
+        // there's a little tweak here to allow perma-confused species to open
+        // doors
+        if (!in_bounds(new_targ) || !you.can_pass_through(new_targ)
+                                                    && you.duration[DUR_CONF])
         {
             you.turn_is_over = true;
             if (you.digging) // no actual damage
@@ -889,6 +892,31 @@ void move_player_action(coord_def move)
     }
 
     const coord_def targ = you.pos() + move;
+
+    if (!player_likes_land() && feat_has_dry_floor(env.grid(targ)))
+    {
+        if (you.species.mon_species == MONS_ELEMENTAL_WELLSPRING)
+        {
+            // currently, elemental wellsprings will need to wait it out to use
+            // any dungeon features that they flood. They are never penalized
+            // for standing still on dry land.
+            temp_change_terrain(targ, DNGN_SHALLOW_WATER, 100,
+                                TERRAIN_CHANGE_FLOOD, nullptr);
+        }
+        else if (feat_has_dry_floor(env.grid(initial_position)) && coinflip())
+        {
+            // the full monster analogue would just move randomly, which would
+            // be amusing but even more gimmicky. This is probably still
+            // completely unplayable.
+            // TODO: this only fires on movement -- what about resting?
+            // TODO: a possible game modifier: flooded dungeon?
+            mpr("You flop around on dry land!");
+            if (coinflip())
+                ouch(1, KILLED_BY_CLOUD, MID_NOBODY, "the air");
+            return;
+        }
+    }
+
     // You can't walk out of bounds!
     if (!in_bounds(targ))
     {
@@ -942,6 +970,14 @@ void move_player_action(coord_def move)
             else
                 mpr("You retract your mandibles.");
         }
+    }
+
+    if (you.species.mon_species == MONS_SPATIAL_MAELSTROM
+        && feat_is_solid(env.grid(targ)) && !feat_is_permarock(env.grid(targ)))
+    {
+        // monster spatial maelstroms also won't step on critical features;
+        // ignore that here.
+        targ_pass = true;
     }
 
     // You can swap places with a friendly or good neutral monster if
@@ -1069,6 +1105,30 @@ void move_player_action(coord_def move)
             additional_time_taken += BASELINE_DELAY / 5;
             dug = true;
         }
+        else if (you.species.mon_species == MONS_SPATIAL_MAELSTROM
+            && feat_is_solid(env.grid(targ)) && !feat_is_permarock(env.grid(targ))
+            && !feat_is_critical(env.grid(targ))) // probably shouldn't matter but you never know
+        {
+            // TODO: autoexplore through walls for spatial maelstroms?
+            destroy_wall(targ);
+            create_monster(
+                    mgen_data(MONS_SPATIAL_VORTEX, BEH_FRIENDLY, targ)
+                    .set_summoned(&you, 2, MON_SUMM_ANIMATE, GOD_LUGONU));
+            targ_monst = monster_at(targ);
+            if (targ_monst && swap_check(targ_monst, mon_swap_dest))
+                swap = true;
+        }
+        else if (feat_is_tree(env.grid(targ)))
+        {
+            // only reachable for lerny players. Basically, tree-specific
+            // digging.
+            ASSERT(you.species == SP_MONSTER);
+            mprf("You crash through %s, knocking it down!",
+                feature_description_at(targ, false, DESC_THE).c_str());
+            destroy_wall(targ);
+            noisy(6, you.pos());
+            additional_time_taken += you.time_taken;
+        }
 
         if (swap)
             _swap_places(targ_monst, mon_swap_dest);
@@ -1096,6 +1156,25 @@ void move_player_action(coord_def move)
         // put a monster at the player's location.
         if (swap)
             targ_monst->apply_location_effects(targ);
+        else
+        {
+            if (you.monster_instance)
+                mons_trail_effects(you.monster_instance.get(), old_pos);
+
+            if (you.duration[DUR_CLOUD_TRAIL])
+            {
+                if (cell_is_solid(old_pos))
+                    ASSERT(you.wizmode_teleported_into_rock);
+                else
+                {
+                    auto cloud = static_cast<cloud_type>(
+                        you.props[XOM_CLOUD_TRAIL_TYPE_KEY].get_int());
+                    ASSERT(cloud != CLOUD_NONE);
+                    check_place_cloud(cloud, old_pos, random_range(3, 10), &you,
+                                      0, -1);
+                }
+            }
+        }
 
         if (you_are_delayed() && current_delay()->is_run())
             env.travel_trail.push_back(you.pos());
@@ -1198,6 +1277,9 @@ void move_player_action(coord_def move)
     {
         did_god_conduct(DID_HASTY, 1, true);
     }
+
+    if (you.species == SP_MONSTER)
+        post_monster_move(you.monster_instance.get());
 
     bool did_wu_jian_attack = false;
     if (you_worship(GOD_WU_JIAN) && !attacking && !dug && !rampaged)

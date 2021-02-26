@@ -2304,6 +2304,8 @@ static string _mon_special_name(const monster& mon, description_level_type desc,
 string monster::name(description_level_type desc, bool force_vis,
                      bool force_article) const
 {
+    if (is_player_proxy())
+        return you.name(desc, true, force_article);
     string s = _mon_special_name(*this, desc, force_vis);
     if (!s.empty() || desc == DESC_NONE)
         return s;
@@ -2365,7 +2367,7 @@ bool monster::pronoun_plurality(bool force_visible) const
 
 string monster::conj_verb(const string &verb) const
 {
-    return conjugate_verb(verb, false);
+    return conjugate_verb(verb, is_player_proxy());
 }
 
 string monster::hand_name(bool plural, bool *can_plural) const
@@ -3678,6 +3680,14 @@ bool monster::is_unbreathing() const
 
 bool monster::is_insubstantial() const
 {
+    if (you.species.mon_species == MONS_ORB_OF_DESTRUCTION
+        && type == MONS_ORB_OF_DESTRUCTION
+        && you.monster_instance.get() == this)
+    {
+        // OoDs are only marked as insubstantial for technical reasons, no need
+        // to apply that to a player
+        return false;
+    }
     return mons_class_flag(type, M_INSUBSTANTIAL);
 }
 

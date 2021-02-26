@@ -6,6 +6,8 @@
 #include "item-prop.h"
 #include "libutil.h"
 #include "mapdef.h"
+#include "monster.h"
+#include "mon-util.h"
 #include "ng-setup.h"
 #include "playable.h"
 #include "player.h"
@@ -35,10 +37,25 @@ job_type get_job_by_abbrev(const char *abbrev)
     return JOB_UNKNOWN;
 }
 
+// hacky...
+static string _monster_job_name;
+
 const char *get_job_name(job_type which_job)
 {
     if (which_job == JOB_UNKNOWN)
         return "Unemployed";
+
+    if (which_job == JOB_MONSTER)
+    {
+        if (you.monster_instance)
+            _monster_job_name = you.monster_instance->full_name(DESC_PLAIN);
+        else
+        {
+            _monster_job_name = uppercase_first(
+                        mons_type_name(you.species.mon_species, DESC_PLAIN));
+        }
+        return _monster_job_name.c_str();
+    }
 
     return _job_def(which_job).name;
 }

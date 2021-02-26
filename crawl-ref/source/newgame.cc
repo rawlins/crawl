@@ -22,6 +22,8 @@
 #include "macro.h"
 #include "maps.h"
 #include "menu.h"
+#include "mon-place.h"
+#include "mon-util.h"
 #include "ng-input.h"
 #include "ng-restr.h"
 #include "options.h"
@@ -70,6 +72,7 @@ newgame_def::newgame_def()
     : name(), type(GAME_TYPE_NORMAL),
       seed(0), pregenerate(false),
       species(SP_UNKNOWN), job(JOB_UNKNOWN),
+      monster_species(MONS_NO_MONSTER),
       weapon(WPN_UNKNOWN),
       fully_random(false)
 {
@@ -157,6 +160,11 @@ string newgame_char_description(const newgame_def& ng)
         const string s = (ng.species == SP_RANDOM ? "Random " : "Recommended ");
         return s + get_job_name(ng.job);
     }
+    else if (ng.species == SP_MONSTER)
+    {
+        return species::name(ng.species) + " ("
+                        + mons_type_name(ng.monster_species, DESC_PLAIN) + ")";
+    }
     else
         return species::name(ng.species) + " " + get_job_name(ng.job);
 }
@@ -165,7 +173,11 @@ static string _welcome(const newgame_def& ng)
 {
     string text;
     if (ng.species != SP_UNKNOWN)
-        text = species::name(ng.species);
+    {
+        text = species::name(ng.species,
+            ng.species == SP_MONSTER ? species::SPNAME_ADJ : species::SPNAME_PLAIN);
+    }
+    // TODO: monster names here need some work still
     if (ng.job != JOB_UNKNOWN)
     {
         if (!text.empty())
@@ -542,6 +554,163 @@ string newgame_random_name()
     return "";
 }
 
+static monster_type _process_monster_spec(const string &specs)
+{
+    // copied from wiz-mon.cc
+    mons_list mlist;
+    string err = mlist.add_mons(specs.c_str());
+
+    if (!err.empty())
+    {
+        // Try for a partial match, but not if the user accidentally entered
+        // only a few letters.
+        monster_type partial = get_monster_by_name(specs.c_str(), true);
+        if (specs.size() >= 3 && partial != MONS_PROGRAM_BUG)
+        {
+            mlist.clear();
+            mlist.add_mons(mons_type_name(partial, DESC_PLAIN));
+        }
+        else
+            return MONS_NO_MONSTER;
+    }
+
+    mons_spec mspec = mlist.get_monster(0);
+    if (mspec.type == MONS_NO_MONSTER)
+        return mspec.type;
+
+    return fixup_zombie_type(static_cast<monster_type>(mspec.type),
+                          mspec.monbase);
+}
+
+#define MAX_MONSTER_NAME_WIDTH 20
+static monster_type _choose_monster_species()
+{
+    // TODO: use new ui things for this
+    char buf[MAX_MONSTER_NAME_WIDTH + 1]; // FIXME: make line_reader handle widths
+    buf[0] = '\0';
+    resumable_line_reader reader(buf, sizeof(buf));
+    string result_str;
+    monster_type result = MONS_NO_MONSTER;
+
+    bool done = false;
+    bool good_name = false;
+    bool cancel = false;
+
+    formatted_string title;
+
+    auto title_hbox = make_shared<Box>(Widget::HORZ);
+    title_hbox->add_child(make_shared<Text>(title));
+    title_hbox->set_cross_alignment(Widget::CENTER);
+    title_hbox->set_margin_for_sdl(0, 0, 20, 0);
+    title_hbox->set_margin_for_crt(0, 0, 1, 0);
+
+    auto monster_txt = make_shared<Text>();
+    monster_txt->set_margin_for_sdl(20, 0, 20, 0);
+    monster_txt->set_margin_for_crt(1, 0, 1, 0);
+
+    auto vbox = make_shared<Box>(Box::VERT);
+    vbox->add_child(move(title_hbox));
+    auto prompt_ui = make_shared<Text>();
+    vbox->add_child(prompt_ui);
+    vbox->add_child(monster_txt);
+
+    auto sub_items = make_shared<OuterMenu>(false, 3, 1);
+    vbox->add_child(sub_items);
+
+    _add_menu_sub_item(sub_items, 0, 0,
+            "Esc - Quit", "", CK_ESCAPE, CK_ESCAPE);
+    _add_menu_sub_item(sub_items, 1, 0,
+            "* - Random monster", "", '*', '*');
+
+    auto ok_switcher = make_shared<Switcher>();
+    auto begin_txt = make_shared<Text>();
+    ok_switcher->align_y = Widget::STRETCH;
+    {
+        begin_txt->set_text(formatted_string("Enter - Begin!", BROWN));
+
+        auto btn = make_shared<MenuButton>();
+        btn->on_activate_event([&](const ActivateEvent&) {
+            if (good_name)
+                done = true;
+            return true;
+        });
+        begin_txt->set_margin_for_sdl(4,8);
+        begin_txt->set_margin_for_crt(0, 2, 0, 0);
+        btn->set_child(begin_txt);
+        btn->id = CK_ENTER;
+        btn->description = "";
+        btn->hotkey = CK_ENTER;
+        btn->highlight_colour = STARTUP_HIGHLIGHT_CONTROL;
+
+        auto err = make_shared<Text>(
+                formatted_string("Unknown monster!", LIGHTRED));
+        err->set_margin_for_sdl(0, 0, 0, 10);
+        auto box = make_shared<Box>(Box::HORZ);
+        box->set_cross_alignment(Widget::CENTER);
+        box->add_child(err);
+
+        ok_switcher->add_child(btn);
+        ok_switcher->add_child(box);
+        sub_items->add_button(btn, 2, 0);
+    }
+
+    auto popup = make_shared<ui::Popup>(move(vbox));
+
+    sub_items->on_activate_event([&](const ActivateEvent& event) {
+        const auto button = static_pointer_cast<MenuButton>(event.target());
+        const auto id = button->id;
+        switch (id)
+        {
+            case '*':
+                reader.putkey(CK_END);
+                reader.putkey(CONTROL('U'));
+                // TODO: implement
+                break;
+            case CK_ESCAPE:
+                done = cancel = true;
+                break;
+        }
+        return true;
+    });
+
+    popup->on_keydown_event([&](const KeyEvent& ev) {
+        auto key = ev.key();
+
+        key = reader.putkey(key);
+
+        result_str = buf;
+        trim_string(result_str);
+        result = _process_monster_spec(result_str);
+        good_name = result != MONS_NO_MONSTER;
+        monster_txt->set_text(good_name ?
+                    string("Selected: ") +
+                    uppercase_first(mons_type_name(result, DESC_PLAIN)) : "");
+        ok_switcher->current() = good_name ? 0 : 1;
+        return true;
+    });
+
+    ui::push_layout(move(popup));
+    while (!done && !crawl_state.seen_hups)
+    {
+        formatted_string prompt;
+        prompt.textcolour(CYAN);
+        prompt.cprintf("What monster are you today? ");
+        prompt.textcolour(LIGHTGREY);
+        prompt.cprintf("%s\n", buf);
+        prompt.textcolour(LIGHTRED);
+        prompt_ui->set_text(prompt);
+
+        ui::pump_events();
+    }
+    ui::pop_layout();
+
+    if (cancel || crawl_state.seen_hups)
+        game_ended(game_exit::abort);
+
+    ASSERT(result != MONS_NO_MONSTER);
+    return result;
+}
+
 static void _choose_name(newgame_def& ng, newgame_def& choice)
 {
     char buf[MAX_NAME_LENGTH + 1]; // FIXME: make line_reader handle widths
@@ -553,12 +722,11 @@ static void _choose_name(newgame_def& ng, newgame_def& choice)
     bool good_name = true;
     bool cancel = false;
 
-    string specs = chop_string(species::name(ng.species), 79, false);
+    string specs = chop_string(newgame_char_description(ng), 79, false);
 
     formatted_string title;
-    title.cprintf("You are a%s %s %s.",
-            (is_vowel(specs[0])) ? "n" : "", specs.c_str(),
-            get_job_name(ng.job));
+    title.cprintf("You are a%s %s.",
+            (is_vowel(specs[0])) ? "n" : "", specs.c_str());
 
     auto title_hbox = make_shared<Box>(Widget::HORZ);
 #ifdef USE_TILE
@@ -1000,6 +1168,7 @@ bool choose_game(newgame_def& ng, newgame_def& choice,
     ng.type = choice.type;
     ng.seed = choice.seed;
     ng.pregenerate = choice.pregenerate;
+    ng.monster_species = choice.monster_species;
 
 #ifndef DGAMELAUNCH
     // New: pick name _after_ character choices.
@@ -1605,6 +1774,14 @@ void species_group::attach(const newgame_def& ng, const newgame_def& defaults,
 static void _prompt_choice(int choice_type, newgame_def& ng, newgame_def& ng_choice,
                         const newgame_def& defaults)
 {
+    if (ng.species == SP_MONSTER || ng.job == JOB_MONSTER)
+    {
+        ng_choice.monster_species = _choose_monster_species();
+        ng_choice.species = SP_MONSTER;
+        ng_choice.job = JOB_MONSTER;
+        return;
+    }
+
     auto newgame_ui = make_shared<UINewGameMenu>(choice_type, ng, ng_choice, defaults);
     auto popup = make_shared<ui::Popup>(newgame_ui);
 
@@ -1659,6 +1836,7 @@ static void _construct_weapon_menu(const newgame_def& ng,
     {
         weapon_type wpn_type = weapons[i].first;
 
+        // TODO: correctly handle monster species here
         switch (wpn_type)
         {
         case WPN_UNARMED:

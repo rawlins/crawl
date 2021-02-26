@@ -1038,31 +1038,43 @@ static void _spellcasting_side_effects(spell_type spell, god_type god,
 
 }
 
-#ifdef WIZARD
-static void _try_monster_cast(spell_type spell, int /*powc*/,
+static spret _try_monster_cast(spell_type spell, int /*powc*/,
                               dist &spd, bolt &beam)
 {
+    monster *mon = get_free_monster();
+    if (!mon)
+    {
+        ASSERT(you.species != SP_MONSTER); // TODO: could happen with maelstroms...
+        mpr("Couldn't try casting monster spell because there is "
+            "no empty monster slot.");
+        return spret::abort;
+    }
+
+#ifdef WIZARD
     if (monster_at(you.pos()))
     {
         mpr("Couldn't try casting monster spell because you're "
             "on top of a monster.");
-        return;
+        return spret::abort;
     }
+#else
+    ASSERT(!monster_at(you.pos()));
+    ASSERT(you.monster_instance);
+#endif
 
-    monster* mon = get_free_monster();
-    if (!mon)
+    if (you.monster_instance)
+        *mon = *you.monster_instance;
+    else
     {
-        mpr("Couldn't try casting monster spell because there is "
-            "no empty monster slot.");
-        return;
+        mpr("Invalid player spell, attempting to cast it as monster spell.");
+
+        mon->mname      = "Dummy Monster";
+        mon->type       = MONS_HUMAN;
+        mon->behaviour  = BEH_SEEK;
+        mon->attitude   = ATT_FRIENDLY;
     }
-
-    mpr("Invalid player spell, attempting to cast it as monster spell.");
-
-    mon->mname      = "Dummy Monster";
-    mon->type       = MONS_HUMAN;
-    mon->behaviour  = BEH_SEEK;
-    mon->attitude   = ATT_FRIENDLY;
+    // hackiness - temporarily move the monster to the player position and set
+    // blame accordingly
     mon->flags      = (MF_NO_REWARD | MF_JUST_SUMMONED | MF_SEEN
                        | MF_WAS_IN_VIEW | MF_HARD_RESET);
     mon->hit_points = you.hp;
@@ -1085,11 +1097,24 @@ static void _try_monster_cast(spell_type spell, int /*powc*/,
 
     env.mgrid(you.pos()) = mon->mindex();
 
+    // TODO: merge waste_of_time refactor
+    // if (you.monster_instance)
+    //     for (auto s : mon->spells)
+    //         if (s.spell == spell)
+    //         {
+    //             if (ms_waste_of_time(mon, s))
+    //             {
+    //                 mpr("That won't do anything."); // TODO: info leaks...
+    //                 return spret::abort;
+    //             }
+    //             else
+    //                 break;
+    //         }
     mons_cast(mon, beam, spell, MON_SPELL_NO_FLAGS);
 
     mon->reset();
+    return spret::success;
 }
-#endif // WIZARD
 
 static spret _do_cast(spell_type spell, int powc, const dist& spd,
                            bolt& beam, god_type god, bool fail);
@@ -2003,14 +2028,15 @@ spret your_spells(spell_type spell, int powc, bool allow_fail,
         return spret::abort;
 
     case spret::none:
+        if (is_valid_spell(spell)
+            && (you.species == SP_MONSTER
 #ifdef WIZARD
-        if (you.wizard && !allow_fail && is_valid_spell(spell)
-            && (flags & spflag::monster))
-        {
-            _try_monster_cast(spell, powc, *target, beam);
-            return spret::success;
-        }
+                || you.wizard && !allow_fail
 #endif
+            ) && (flags & spflag::monster))
+        {
+            return _try_monster_cast(spell, powc, *target, beam);
+        }
 
         if (is_valid_spell(spell))
         {
@@ -2347,7 +2373,13 @@ static spret _do_cast(spell_type spell, int powc, const dist& spd,
     zap_type zap = spell_to_zap(spell);
     if (zap != NUM_ZAPS)
     {
-        return zapping(zap, spell_zap_power(spell, powc), beam, true, nullptr,
+        const int power = spell_zap_power(spell, powc);
+
+        // keep haste from crashing. TODO: is this the right way to solve this?
+        if (spell_range(spell, power) < 0)
+            beam.target = you.pos();
+
+        return zapping(zap, power, beam, true, nullptr,
                        fail);
     }
 

@@ -1086,12 +1086,19 @@ bool mon_special_ability(monster* mons)
 
 void guardian_golem_bond(monster& mons)
 {
-    for (monster_near_iterator mi(&mons, LOS_NO_TRANS); mi; ++mi)
+    const bool player = you.species == SP_MONSTER
+                                        && &mons == you.monster_instance.get();
+    const coord_def target_pos = player ? you.pos() : mons.pos();
+
+    for (monster_near_iterator mi(target_pos, LOS_NO_TRANS); mi; ++mi)
     {
         if (mons_aligned(&mons, *mi) && !mi->has_ench(ENCH_CHARM)
             && *mi != &mons)
         {
-            mi->add_ench(mon_enchant(ENCH_INJURY_BOND, 1, &mons, INFINITE_DURATION));
+            mi->add_ench(mon_enchant(ENCH_INJURY_BOND, 1,
+                player ? static_cast<actor *>(&you)
+                       : static_cast<actor *>(&mons),
+                INFINITE_DURATION));
         }
     }
 }

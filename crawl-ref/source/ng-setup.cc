@@ -15,6 +15,7 @@
 #include "item-use.h"
 #include "jobs.h"
 #include "message.h"
+#include "mon-death.h"
 #include "mutation.h"
 #include "ng-init.h"
 #include "ng-wanderer.h"
@@ -75,6 +76,42 @@ static void _autopickup_ammo(missile_type missile)
 {
     if (Options.autopickup_starting_ammo)
         you.force_autopickup[OBJ_MISSILES][missile] = AP_FORCE_ON;
+}
+
+static void _newgame_setup_item(item_def &item, int slot)
+{
+    if ((item.base_type == OBJ_WEAPONS && can_wield(&item, false, false)
+        || item.base_type == OBJ_ARMOUR && can_wear_armour(item, false, false))
+        && you.equip[get_item_slot(item)] == -1)
+    {
+        you.equip[get_item_slot(item)] = slot;
+    }
+
+    if (item.base_type == OBJ_MISSILES)
+        _autopickup_ammo(static_cast<missile_type>(item.sub_type));
+    // You can get the books without the corresponding items as a wanderer.
+    else if (item.base_type == OBJ_BOOKS && item.sub_type == BOOK_GEOMANCY)
+        _autopickup_ammo(MI_STONE);
+    // You probably want to pick up both.
+    if (item.is_type(OBJ_MISSILES, MI_SLING_BULLET))
+        _autopickup_ammo(MI_STONE);
+
+    origin_set_startequip(item);
+
+    // Wanderers may or may not already have a spell. - bwr
+    // Also, when this function gets called their possible randbook
+    // has not been initialised and will trigger an ASSERT.
+    if (item.base_type == OBJ_BOOKS
+        && you.char_class != JOB_WANDERER
+        && !you.has_mutation(MUT_INNATE_CASTER))
+    {
+        spell_type which_spell = spells_in_book(item)[0];
+        if (!spell_is_useless(which_spell, false, true)
+            && spell_difficulty(which_spell) <= 1)
+        {
+            add_spell_to_memory(which_spell);
+        }
+    }
 }
 
 /**
@@ -160,38 +197,7 @@ item_def* newgame_make_item(object_class_type base,
         return nullptr;
     }
 
-    if ((item.base_type == OBJ_WEAPONS && can_wield(&item, false, false)
-        || item.base_type == OBJ_ARMOUR && can_wear_armour(item, false, false))
-        && you.equip[get_item_slot(item)] == -1)
-    {
-        you.equip[get_item_slot(item)] = slot;
-    }
-
-    if (item.base_type == OBJ_MISSILES)
-        _autopickup_ammo(static_cast<missile_type>(item.sub_type));
-    // You can get the books without the corresponding items as a wanderer.
-    else if (item.base_type == OBJ_BOOKS && item.sub_type == BOOK_GEOMANCY)
-        _autopickup_ammo(MI_STONE);
-    // You probably want to pick up both.
-    if (item.is_type(OBJ_MISSILES, MI_SLING_BULLET))
-        _autopickup_ammo(MI_STONE);
-
-    origin_set_startequip(item);
-
-    // Wanderers may or may not already have a spell. - bwr
-    // Also, when this function gets called their possible randbook
-    // has not been initialised and will trigger an ASSERT.
-    if (item.base_type == OBJ_BOOKS
-        && you.char_class != JOB_WANDERER
-        && !you.has_mutation(MUT_INNATE_CASTER))
-    {
-        spell_type which_spell = spells_in_book(item)[0];
-        if (!spell_is_useless(which_spell, false, true)
-            && spell_difficulty(which_spell) <= 1)
-        {
-            add_spell_to_memory(which_spell);
-        }
-    }
+    _newgame_setup_item(item, slot);
 
     return &item;
 }
@@ -523,6 +529,67 @@ void initial_dungeon_setup()
     initialise_item_descriptions();
 }
 
+static void _setup_monster_player()
+{
+    rng::generator gameplay(rng::GAMEPLAY);
+
+    ASSERT(you.species.mon_species < NUM_MONSTERS);
+    dprf("mon_species is %d", (int) you.species.mon_species);
+    mons_spec spec = mons_spec(you.species);
+    spec.attitude = ATT_FRIENDLY;
+
+    // hacky, but it's hard to get around all the code that has to work this
+    // way: create a real monster, place it, and make a copy.
+    // TODO: packs?
+    monster *tmp_mons = dgn_place_monster(spec, coord_def(0,0), true, true, false);
+    ASSERT(tmp_mons);
+    // player inv should be empty before this call.
+    // first, we copy the items off the monster, and clear the monster inventory.
+    vector<item_def> mon_items;
+    for (mon_inv_iterator ii(*tmp_mons); ii; ++ii)
+    {
+        mon_items.emplace_back(*ii);
+        destroy_item(*ii);
+    }
+
+    // then we set up monster instance. This needs to be in place before
+    // giving the player any items from the monster.
+    you.monster_instance = make_shared<monster>(*tmp_mons);
+    // TODO: 0,0 is not a great position for this, but everything else triggers
+    // crashes when you try to do anything substantive with the monster.
+    tmp_mons->flags |= MF_HARD_RESET; // prevents any items, corpses
+    monster_die(*tmp_mons, KILL_DISMISSED, NON_MONSTER);
+
+    // Now move everything to the inventory.
+    for (auto &i : mon_items)
+        move_item_to_inv(i);
+
+    // Finally, do the usual newgame stuff of wielding any weapons this has
+    // provide the player.
+    for (int slot = 0; slot < ENDOFPACK; ++slot)
+    {
+        item_def& item = you.inv[slot];
+        if (item.defined())
+            _newgame_setup_item(item, slot);
+    }
+
+    // religion
+    // conditioning this on is_priest is a little too quirky; for example
+    // dissolution is a priest but TRJ is not.
+    if (you.monster_instance->deity() <= NUM_GODS)
+    {
+        // TODO: nameless gods?? choose randomly? or maybe use monk behavior?
+        you.religion = you.monster_instance->deity();
+        you.piety = 38;
+        // init gift timeout? lugonu in abyss?
+    }
+    // start flying creatures in the air
+    if (you.racial_permanent_flight())
+        you.attribute[ATTR_PERM_FLIGHT] = 1;
+    // TODO: unhandled flags: batty, confused, unblindable, blood scent, submerges, no_skeleton, web sense
+
+}
+
 static void _setup_generic(const newgame_def& ng,
                            bool normal_dungeon_setup /*for catch2-tests*/)
 {
@@ -550,6 +617,12 @@ static void _setup_generic(const newgame_def& ng,
     you.your_name  = ng.name;
     you.species    = ng.species;
     you.char_class = ng.job;
+
+    if (you.species == SP_MONSTER)
+    {
+        you.species = ng.monster_species;
+        _setup_monster_player();
+    }
 
     you.chr_class_name = get_job_name(you.char_class);
 

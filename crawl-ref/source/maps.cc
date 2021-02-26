@@ -719,7 +719,7 @@ static bool _map_matches_layout_type(const map_def &map)
 
 static bool _map_matches_species(const map_def &map)
 {
-    if (!species::is_valid(you.species))
+    if (!species::is_valid(you.species.genus()))
         return true;
     return !map.has_tag("no_species_"
            + lowercase_string(species::get_abbrev(you.species)));

@@ -71,6 +71,7 @@ static const int STEALTH_PIP = 50;
 
 /// The minimum aut cost for a player move (before haste)
 static const int FASTEST_PLAYER_MOVE_SPEED = 6;
+static const int FASTEST_MONSTER_PLAYER_MOVE_SPEED = 3;
 // relevant for swiftness, etc
 
 // Min delay for thrown projectiles.
@@ -119,8 +120,11 @@ public:
     // Permanent data:
     // ---------------
     string your_name;
-    species_type species;
+    mc_species species;
     job_type char_class;
+
+    // for SP_MONSTER
+    shared_ptr<monster> monster_instance;
 
     // This field is here even in non-WIZARD compiles, since the
     // player might have been playing previously under wiz mode.
@@ -686,6 +690,7 @@ public:
     string arm_name(bool plural, bool *can_plural = nullptr) const override;
     int arm_count() const;
     string unarmed_attack_name() const;
+    string species_appellation(bool include_job=false, bool article=false) const;
 
     bool fumbles_attack() override;
     bool fights_well_unarmed(int heavy_armour_penalty) override;
@@ -1003,6 +1008,8 @@ int player_res_acid(bool calc_unid = true, bool items = true);
 bool player_kiku_res_torment();
 
 bool player_likes_water(bool permanently = false);
+bool player_likes_lava(bool permanently = false);
+bool player_likes_land(bool permanently = false);
 
 int player_res_electricity(bool calc_unid = true, bool temp = true,
                            bool items = true);
@@ -1066,6 +1073,7 @@ monster_type player_mons(bool transform = true);
 void update_player_symbol();
 void update_vision_range();
 
+int you_hands_fit_rings();
 maybe_bool you_can_wear(equipment_type eq, bool temp = false);
 bool player_has_feet(bool temp = true, bool include_mutations = true);
 

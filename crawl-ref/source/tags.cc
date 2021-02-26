@@ -1363,7 +1363,7 @@ static void _tag_construct_char(writer &th)
     marshallString2(th, you.your_name);
     marshallString2(th, Version::Long);
 
-    marshallByte(th, you.species);
+    marshallByte(th, you.species.base);
     marshallByte(th, you.char_class);
     marshallByte(th, you.experience_level);
     marshallString2(th, string(get_job_name(you.char_class)));
@@ -1384,6 +1384,8 @@ static void _tag_construct_char(writer &th)
     marshallString2(th, crawl_state.map);
 
     marshallByte(th, you.explore);
+    if (you.species == SP_MONSTER)
+        marshallInt(th, you.species.mon_species);
 }
 
 /// is a custom scoring mechanism being stored?
@@ -1753,6 +1755,9 @@ static void _tag_construct_you_items(writer &th)
     for (int i = 0; i < NUM_OBJECT_CLASSES; i++)
         for (int j = 0; j < MAX_SUBTYPES; j++)
             marshallInt(th, you.force_autopickup[i][j]);
+
+    if (you.species == SP_MONSTER)
+        marshallMonster(th, *you.monster_instance);
 }
 
 static void marshallPlaceInfo(writer &th, PlaceInfo place_info)
@@ -2290,8 +2295,8 @@ void tag_read_char(reader &th, uint8_t /*format*/, uint8_t major, uint8_t minor)
     }
     else
     {
-        if (you.species >= 0 && you.species < (int)ARRAYSZ(old_species))
-            you.chr_species_name = old_species[you.species];
+        if (you.species.base >= 0 && you.species.base < (int)ARRAYSZ(old_species))
+            you.chr_species_name = old_species[you.species.base];
         else
             you.chr_species_name = "Yak";
         if (you.religion >= 0 && you.religion < (int)ARRAYSZ(old_gods))
@@ -2305,6 +2310,9 @@ void tag_read_char(reader &th, uint8_t /*format*/, uint8_t major, uint8_t minor)
 
     if (major > 34 || major == 34 && minor >= 130)
         you.explore = unmarshallBoolean(th);
+
+    if (you.species.base == SP_MONSTER)
+        you.species.mon_species = static_cast<monster_type>(unmarshallInt(th));
 }
 
 #if TAG_MAJOR_VERSION == 34
@@ -3110,8 +3118,9 @@ static void _tag_read_you(reader &th)
     }
     you.mutation[MUT_FAST] = you.innate_mutation[MUT_FAST];
     you.mutation[MUT_SLOW] = you.innate_mutation[MUT_SLOW];
-    if (you.species != SP_NAGA)
-        _clear_mutation(MUT_SPIT_POISON);
+    you.mutation[MUT_BREATHE_FLAMES] = 0;
+    if (you.species != SP_NAGA && you.species != SP_MONSTER)
+        you.mutation[MUT_SPIT_POISON] = 0;
 #endif
 
     // TODO: this code looks really out of context, it should at least have
@@ -4219,6 +4228,11 @@ static void _tag_read_you_items(reader &th)
         if (you.inv[i].defined())
             god_id_item(you.inv[i], true);
 #endif
+    if (you.species == SP_MONSTER)
+    {
+        you.monster_instance = make_shared<monster>();
+        unmarshallMonster(th, *you.monster_instance);
+    }
 }
 
 static PlaceInfo unmarshallPlaceInfo(reader &th)

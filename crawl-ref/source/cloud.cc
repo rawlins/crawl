@@ -799,6 +799,12 @@ void place_cloud(cloud_type cl_type, const coord_def& ctarget, int cl_range,
 
     ASSERT(!cell_is_solid(ctarget));
 
+    if (agent && you.species == SP_MONSTER && agent->is_monster()
+          && agent->as_monster() == you.monster_instance.get())
+    {
+        agent = &you;
+    }
+
     god_conduct_trigger conducts[3];
     kill_category whose = KC_OTHER;
     killer_type killer  = KILL_MISC;
@@ -938,6 +944,9 @@ bool actor_cloud_immune(const actor &act, cloud_type type)
     if (is_harmless_cloud(type) || act.cloud_immune())
         return true;
 
+    // for monster species, level 3 rF/rC grants cloud immunity to the relevant
+    // cloud type. This is fairly ad-hoc, but it's needed for e.g. asmodeus.
+    // TODO: something more refined?
     switch (type)
     {
         case CLOUD_FIRE:
@@ -948,6 +957,7 @@ bool actor_cloud_immune(const actor &act, cloud_type type)
 #if TAG_MAJOR_VERSION == 34
                    || you.has_mutation(MUT_FLAME_CLOUD_IMMUNITY)
 #endif
+                   || you.species.is_genus_monster() && you.res_fire() >= 3
                    || player_equip_unrand(UNRAND_FIRESTARTER)
                    || you.has_mutation(MUT_IGNITE_BLOOD);
         case CLOUD_HOLY:
@@ -957,6 +967,7 @@ bool actor_cloud_immune(const actor &act, cloud_type type)
                 return act.res_cold() >= 3;
             return player_equip_unrand(UNRAND_FROSTBITE)
 #if TAG_MAJOR_VERSION == 34
+                   || you.species.is_genus_monster() && you.res_cold() >= 3
                    || you.has_mutation(MUT_FREEZING_CLOUD_IMMUNITY)
 #endif
                    ;

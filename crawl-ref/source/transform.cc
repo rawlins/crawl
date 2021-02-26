@@ -498,6 +498,13 @@ public:
      * as the one used to describe this form in @.
      */
     string get_transform_description() const override { return "your old self."; }
+    monster_type get_equivalent_mons() const override
+    {
+        if (you.species.is_monster())
+            return you.species;
+        else
+            return Form::get_equivalent_mons();
+    }
 };
 
 class FormSpider : public Form

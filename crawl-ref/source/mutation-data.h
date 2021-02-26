@@ -72,7 +72,9 @@ static const mutation_def mut_data[] =
 { MUT_POISON_RESISTANCE, 4, 1, mutflag::good, true,
   "poison resistance",
 
-  {"Your system is resistant to poisons. (rPois)", "", ""},
+  {"Your system is resistant to poisons. (rPois)",
+   "Your system is very resistant to poisons.",
+   "Your system is immune to poisons."},
   {"You feel resistant to poisons.", "",  ""},
   {"You feel less resistant to poisons.", "", ""},
 },
@@ -184,7 +186,9 @@ static const mutation_def mut_data[] =
 { MUT_SHOCK_RESISTANCE, 2, 1, mutflag::good, true,
   "electricity resistance",
 
-  {"You are resistant to electric shocks. (rElec)", "", ""},
+  {"You are resistant to electric shocks. (rElec)",
+   "You are very resistant to electric shocks.",
+   "You are almost immune to electricity."},
   {"You feel insulated.", "", ""},
   {"You feel conductive.", "", ""},
 },
@@ -2062,7 +2066,9 @@ static const mutation_def mut_data[] =
 { MUT_ACID_RESISTANCE, 0, 1, mutflag::good, true,
   "acid resistance",
 
-  {"You are resistant to acid. (rCorr)", "", ""},
+  {"You are resistant to acid. (rCorr)",
+   "You are very resistant to acid.",
+   "You are immune to acid."},
   {"You feel resistant to acid.", "",  ""},
   {"You feel less resistant to acid.", "", ""},
 },

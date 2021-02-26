@@ -171,7 +171,7 @@ bool load_doll_data(const char *fn, dolls_data *dolls, int max,
 
                 if (*cur == count++)
                 {
-                    tilep_scan_parts(fbuf, dolls[0], you.species,
+                    tilep_scan_parts(fbuf, dolls[0], you.species.genus(),
                                      you.experience_level);
                     break;
                 }
@@ -184,7 +184,7 @@ bool load_doll_data(const char *fn, dolls_data *dolls, int max,
                 if (fbuf[0] == '#') // Skip comment lines.
                     continue;
 
-                tilep_scan_parts(fbuf, dolls[count++], you.species,
+                tilep_scan_parts(fbuf, dolls[count++], you.species.genus(),
                                  you.experience_level);
             }
         }
@@ -209,13 +209,13 @@ void init_player_doll()
     if (mode == TILEP_MODE_LOADING)
     {
         player_doll = dolls[cur];
-        tilep_race_default(you.species, you.experience_level, &player_doll);
+        tilep_race_default(you.species.genus(), you.experience_level, &player_doll);
         return;
     }
 
     for (int i = 0; i < TILEP_PART_MAX; i++)
         player_doll.parts[i] = TILEP_SHOW_EQUIP;
-    tilep_race_default(you.species, you.experience_level, &player_doll);
+    tilep_race_default(you.species.genus(), you.experience_level, &player_doll);
 
     if (mode == TILEP_MODE_EQUIP)
         return;
@@ -263,7 +263,7 @@ void create_random_doll(dolls_data &rdoll)
 // for SHOW_EQUIP, as there's no corresponding item slot for this.
 static tileidx_t _random_trousers()
 {
-    int offset = static_cast<int>(you.species) * 9887
+    int offset = static_cast<int>(you.species.genus()) * 9887
                  + static_cast<int>(you.char_class) * 8719;
     const char *name = you.your_name.c_str();
     for (int i = 0; i < 8 && *name; ++i, ++name)
@@ -290,7 +290,7 @@ void fill_doll_equipment(dolls_data &result)
         break;
     case transformation::statue:
         tileidx_t ch;
-        switch (you.species)
+        switch (you.species.genus())
         {
 #if TAG_MAJOR_VERSION == 34
         case SP_CENTAUR:
@@ -308,7 +308,7 @@ void fill_doll_equipment(dolls_data &result)
         result.parts[TILEP_PART_LEG]     = 0;
         break;
     case transformation::lich:
-        switch (you.species)
+        switch (you.species.genus())
         {
 #if TAG_MAJOR_VERSION == 34
         case SP_CENTAUR:
@@ -353,7 +353,7 @@ void fill_doll_equipment(dolls_data &result)
 
     // Base tile.
     if (result.parts[TILEP_PART_BASE] == TILEP_SHOW_EQUIP)
-        tilep_race_default(you.species, you.experience_level, &result);
+        tilep_race_default(you.species.genus(), you.experience_level, &result);
 
     // Main hand.
     if (result.parts[TILEP_PART_HAND1] == TILEP_SHOW_EQUIP)
@@ -497,7 +497,7 @@ void fill_doll_equipment(dolls_data &result)
         tileidx_t base = 0;
         tileidx_t head = 0;
         tileidx_t wing = 0;
-        tilep_draconian_init(you.species, you.experience_level,
+        tilep_draconian_init(you.species.genus(), you.experience_level,
                              &base, &head, &wing);
 
         if (result.parts[TILEP_PART_DRCHEAD] == TILEP_SHOW_EQUIP)

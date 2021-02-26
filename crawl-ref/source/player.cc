@@ -46,12 +46,14 @@
 #include "item-prop.h"
 #include "items.h"
 #include "item-use.h"
+#include "jobs.h"
 #include "kills.h"
 #include "level-state-type.h"
 #include "libutil.h"
 #include "macro.h"
 #include "melee-attack.h"
 #include "message.h"
+#include "mon-act.h"
 #include "mon-place.h"
 #include "movement.h"
 #include "mutation.h"
@@ -581,7 +583,7 @@ bool is_feat_dangerous(dungeon_feature_type grid, bool permanently,
         return false;
     }
     else if (grid == DNGN_DEEP_WATER && !player_likes_water(permanently)
-             || grid == DNGN_LAVA)
+             || grid == DNGN_LAVA && !player_likes_lava(permanently))
     {
         return true;
     }
@@ -623,6 +625,18 @@ bool player_likes_water(bool permanently)
                && form_likes_water();
 }
 
+bool player_likes_lava(bool permanently)
+{
+    UNUSED(permanently); // no forms currently like lava
+    return species::likes_lava(you.species);
+}
+
+bool player_likes_land(bool permanently)
+{
+    UNUSED(permanently); // no forms currently dislike land
+    return species::likes_land(you.species);
+}
+
 /**
  * Is the player considered to be closely related, if not the same species, to
  * the given monster? (See mon-data.h for species/genus info.)
@@ -650,6 +664,8 @@ monster_type player_mons(bool transform)
         if (mons != MONS_PLAYER)
             return mons;
     }
+    if (you.species.is_monster())
+        return you.species.mon_species;
 
     mons = you.mons_species();
 
@@ -700,6 +716,22 @@ void update_vision_range()
     set_los_radius(you.current_vision);
 }
 
+// how many hands does the player have that will fit rings?
+int you_hands_fit_rings()
+{
+
+    // TODO: finer grained approach -- some monsters with paw-like hands should
+    // be able to wear rings?
+    int base = you.species.genus() == SP_OCTOPODE ? 8
+        : you.species.is_genus_monster()
+          && mons_class_itemuse(you.species) < MONUSE_STARTING_EQUIPMENT
+        ? 0
+        : 2;
+    if (you.get_mutation_level(MUT_MISSING_HAND))
+        base = max(base - 1, 0);
+    return base;
+}
+
 /**
  * Ignoring form & most equipment, but not the UNRAND_FINGER_AMULET, can the
  * player use (usually wear) a given equipment slot?
@@ -719,32 +751,37 @@ maybe_bool you_can_wear(equipment_type eq, bool temp)
     if (species::bans_eq(you.species, eq))
         return MB_FALSE;
 
+    const int ring_count = you_hands_fit_rings();
+
     switch (eq)
     {
-    case EQ_RING_EIGHT:
-    case EQ_LEFT_RING:
-        if (you.get_mutation_level(MUT_MISSING_HAND))
-            return MB_FALSE;
-        // intentional fallthrough
-    case EQ_RIGHT_RING:
     case EQ_RING_ONE:
+    case EQ_RIGHT_RING:
+        return ring_count >= 1 ? MB_TRUE : MB_FALSE;
     case EQ_RING_TWO:
+    case EQ_LEFT_RING:
+        return ring_count >= 2 ? MB_TRUE : MB_FALSE;
     case EQ_RING_THREE:
+        return ring_count >= 3 ? MB_TRUE : MB_FALSE;
     case EQ_RING_FOUR:
+        return ring_count >= 4 ? MB_TRUE : MB_FALSE;
     case EQ_RING_FIVE:
+        return ring_count >= 5 ? MB_TRUE : MB_FALSE;
     case EQ_RING_SIX:
+        return ring_count >= 6 ? MB_TRUE : MB_FALSE;
     case EQ_RING_SEVEN:
-        return MB_TRUE;
-
+        return ring_count >= 7 ? MB_TRUE : MB_FALSE;
+    case EQ_RING_EIGHT:
+        return ring_count >= 8 ? MB_TRUE : MB_FALSE;
     case EQ_WEAPON:
     case EQ_STAFF:
         return you.has_mutation(MUT_NO_GRASPING) ? MB_FALSE :
                you.body_size(PSIZE_TORSO, !temp) < SIZE_MEDIUM ? MB_MAYBE :
                                          MB_TRUE;
 
-    // You can always wear at least one ring (forms were already handled).
     case EQ_RINGS:
-    case EQ_ALL_ARMOUR:
+        return ring_count >= 1 ? MB_TRUE : MB_FALSE;
+    case EQ_ALL_ARMOUR: // why does this return true?
     case EQ_AMULET:
         return MB_TRUE;
 
@@ -779,10 +816,12 @@ maybe_bool you_can_wear(equipment_type eq, bool temp)
         break;
 
     case EQ_BODY_ARMOUR:
-        // Assume that anything that can wear any armour at all can wear a robe
+        // Assume that anything that can wear any armour at all can wear an
+        // animal skin. (TODO: mainline uses robes, maybe because there are
+        // no giant player species? But why are robes restricted to big?)
         // and that anything that can wear CPA can wear all armour.
         dummy.sub_type = ARM_CRYSTAL_PLATE_ARMOUR;
-        alternate.sub_type = ARM_ROBE;
+        alternate.sub_type = ARM_ANIMAL_SKIN;
         break;
 
     case EQ_SHIELD:
@@ -1407,7 +1446,11 @@ bool player::res_corr(bool calc_unid, bool items) const
 
 int player_res_acid(bool calc_unid, bool items)
 {
-    return you.res_corr(calc_unid, items) ? 1 : 0;
+    int player_alone = you.res_corr(calc_unid, items) ? 1 : 0;
+    // slightly hacky way to allow acid immunity
+    if (you.species == SP_MONSTER)
+        return max(player_alone, you.monster_instance->res_acid());
+    return player_alone;
 }
 
 int player_res_electricity(bool calc_unid, bool temp, bool items)
@@ -1450,7 +1493,7 @@ int player_res_electricity(bool calc_unid, bool temp, bool items)
             re++;
     }
 
-    if (re > 1)
+    if (re > 1 && you.species != SP_MONSTER)
         re = 1;
 
     return re;
@@ -1518,7 +1561,11 @@ int player_res_poison(bool calc_unid, bool temp, bool items)
 
     // Cap rPois at + before vulnerability effects are applied
     // (so carrying multiple rPois effects is never useful)
-    rp = min(1, rp);
+    if (you.species != SP_MONSTER)
+        rp = min(1, rp);
+
+    if (you.species == SP_MONSTER && you.monster_instance->res_poison() < 0)
+        rp--;
 
     if (temp)
     {
@@ -1765,13 +1812,27 @@ int player_movement_speed()
 
     // Mutations: -2, -3, -4, unless innate and shapechanged.
     if (int fast = you.get_mutation_level(MUT_FAST))
+    {
         mv -= fast + 1;
+        // this is a hacky way to deal with monster players using speed 9
+        // species, which otherwise would end up with an 8aut delay. We
+        // could generalize this and override the mut entirely...or add
+        // more levels to the player mut.
+        if (fast == 1 && you.species == SP_MONSTER
+            && mons_energy_to_delay(*you.monster_instance, EUT_MOVE) == 9)
+        {
+            mv += 1;
+        }
+    }
 
     if (int slow = you.get_mutation_level(MUT_SLOW))
     {
         mv *= 10 + slow * 2;
         mv /= 10;
     }
+
+    if (you.in_liquid() && you.species == SP_MONSTER)
+        mv = mv * mons_energy_to_delay(*you.monster_instance, EUT_SWIM) / 10;
 
     if (you.duration[DUR_SWIFTNESS] > 0 && !you.in_liquid())
     {
@@ -1789,7 +1850,12 @@ int player_movement_speed()
     // which is a bit of a jump, and a bit too fast) -- bwr
     // Currently Haste takes 6 to 4, which is 2.5x as fast as delay 10
     // and still seems plenty fast. -- elliptic
-    if (mv < FASTEST_PLAYER_MOVE_SPEED)
+    if (you.species == SP_MONSTER)
+    {
+        if (mv < FASTEST_MONSTER_PLAYER_MOVE_SPEED)
+            mv = FASTEST_MONSTER_PLAYER_MOVE_SPEED;
+    }
+    else if (mv < FASTEST_PLAYER_MOVE_SPEED)
         mv = FASTEST_PLAYER_MOVE_SPEED;
 
     return mv;
@@ -2026,6 +2092,14 @@ static int _player_armour_adjusted_dodge_bonus(int scale)
     return dodge_bonus - dodge_bonus * armour_dodge_penalty / (str * 2);
 }
 
+static int _racial_evasion()
+{
+    if (you.species == SP_MONSTER)
+        return you.monster_instance->base_evasion();
+    else
+        return 0;
+}
+
 // Total EV for player using the revised 0.6 evasion model.
 static int _player_evasion(ev_ignore_type evit)
 {
@@ -2039,7 +2113,10 @@ static int _player_evasion(ev_ignore_type evit)
     }
 
     const int scale = 100;
-    const int size_base_ev = (10 + size_factor) * scale;
+
+    // let racial ev simply override size calculations
+    const int size_base_ev = max(_racial_evasion() * scale,
+                                 (10 + size_factor) * scale);
 
     const int vertigo_penalty = you.duration[DUR_VERTIGO] ? 5 * scale : 0;
 
@@ -2687,7 +2764,7 @@ void level_change(bool skip_attribute_increase)
             if (!skip_attribute_increase)
                 species_stat_gain(you.species);
 
-            switch (you.species)
+            switch (you.species.genus())
             {
             case SP_NAGA:
                 if (!(you.experience_level % 3))
@@ -2700,8 +2777,9 @@ void level_change(bool skip_attribute_increase)
             case SP_BASE_DRACONIAN:
                 if (you.experience_level >= 7)
                 {
-                    // XX make seed stable by choosing at birth
-                    you.species = species::random_draconian_colour();
+                    // TODO: fix this
+                    ASSERT(you.species != SP_MONSTER);
+                    you.species.base = species::random_draconian_colour();
 
                     // We just changed our aptitudes, so some skills may now
                     // be at the wrong level (with negative progress); if we
@@ -2955,6 +3033,9 @@ int player_stealth()
         const int pips = armour_type_prop(arm->sub_type, ARMF_STEALTH);
         stealth += pips * STEALTH_PIP;
     }
+
+    if (you.species.mon_species == MONS_SHADOW_DRAGON)
+        stealth += 4 * STEALTH_PIP; // just like the armour
 
     stealth += STEALTH_PIP * you.scan_artefacts(ARTP_STEALTH);
     stealth += STEALTH_PIP * you.wearing_ego(EQ_ALL_ARMOUR, SPARM_STEALTH);
@@ -4029,6 +4110,9 @@ bool confuse_player(int amount, bool quiet, bool force)
         return false;
     }
 
+    if (you.confused() && !you.duration[DUR_CONF])
+        return false; // perma-confused species. TODO: probably some small messaging tweaks
+
     const int old_value = you.duration[DUR_CONF];
     you.increase_duration(DUR_CONF, amount, 40);
 
@@ -4845,6 +4929,7 @@ player::player()
     chr_god_name.clear();
     chr_species_name.clear();
     chr_class_name.clear();
+    monster_instance = nullptr;
     // Permanent data:
     your_name.clear();
     species          = SP_UNKNOWN;
@@ -5379,6 +5464,8 @@ bool player::cannot_move() const
 
 bool player::confused() const
 {
+    if (you.monster_instance && mons_is_confused(*you.monster_instance, true))
+        return true; // perma-confused species. TODO: monster perma-confuse is not quite this?
     return duration[DUR_CONF];
 }
 
@@ -5644,29 +5731,40 @@ int player::base_ac_from(const item_def &armour, int scale) const
  */
 int player::racial_ac(bool temp) const
 {
+    int base_racial_ac = 0;
     // drac scales suppressed in all serious forms, except dragon
-    if (species::is_draconian(species)
+    if (species::is_draconian(species.genus())
         && (!player_is_shapechanged() || form == transformation::dragon
             || !temp))
     {
         int AC = 400 + 100 * (experience_level / 3);  // max 13
-        if (species == SP_GREY_DRACONIAN) // no breath
+        if (species.genus() == SP_GREY_DRACONIAN) // no breath
             AC += 500;
-        return AC;
+        base_racial_ac = AC;
     }
-
-    if (!(player_is_shapechanged() && temp))
+    else if (!(player_is_shapechanged() && temp))
     {
-        if (species == SP_NAGA)
-            return 100 * experience_level / 3;              // max 9
-        else if (species == SP_GARGOYLE)
+        if (species.genus() == SP_NAGA)
+            base_racial_ac = 100 * experience_level / 3;              // max 9
+        else if (species.genus() == SP_GARGOYLE)
         {
-            return 200 + 100 * experience_level * 2 / 5     // max 20
+            base_racial_ac = 200 + 100 * experience_level * 2 / 5     // max 20
                        + 100 * max(0, experience_level - 7) * 2 / 5;
         }
     }
+    if (species == SP_MONSTER)
+    {
+        // take the best of the two: if the monster has any ac, this overrides
+        // the default 0. It also allows e.g. Vashnia to have better starting
+        // AC (though in this case the naga calc takes over after xl 18).
+        //
+        // TODO: An alternative (based on what I did with MR): let this AC be
+        // achieved at the xl corresponding to monster HD.
+        base_racial_ac = max(base_racial_ac,
+                                100 * monster_instance->base_armour_class());
+    }
 
-    return 0;
+    return base_racial_ac;
 }
 
 // Each instance of this class stores a mutation which might change a
@@ -5997,7 +6095,9 @@ mon_holy_type player::holiness(bool temp) const
 
     // Lich form takes precedence over a species' base holiness
     // Alive Vampires are MH_NATURAL
-    if (is_lifeless_undead(temp))
+    if (species.genus() == SP_MONSTER)
+        holi = you.monster_instance->holiness(temp);
+    else if (is_lifeless_undead(temp))
         holi = MH_UNDEAD;
     else if (species::is_nonliving(you.species))
         holi = MH_NONLIVING;
@@ -6017,7 +6117,7 @@ mon_holy_type player::holiness(bool temp) const
         holi |= MH_HOLY;
 
     if (is_evil_god(religion)
-        || species == SP_DEMONSPAWN || you.has_mutation(MUT_VAMPIRISM))
+        || species.genus() == SP_DEMONSPAWN || you.has_mutation(MUT_VAMPIRISM))
     {
         holi |= MH_EVIL;
     }
@@ -6067,7 +6167,8 @@ bool player::is_unbreathing() const
 
 bool player::is_insubstantial() const
 {
-    return form == transformation::wisp;
+    return species == SP_MONSTER && monster_instance->is_insubstantial()
+        || form == transformation::wisp;
 }
 
 int player::res_acid(bool calc_unid) const
@@ -6101,6 +6202,7 @@ int player::res_water_drowning() const
 
     if (is_unbreathing()
         || species::can_swim(species) && !form_changed_physiology()
+        || species == SP_MONSTER && monster_instance->res_water_drowning()
         || form == transformation::ice_beast)
     {
         rw++;
@@ -6168,7 +6270,9 @@ bool player::res_torment() const
 
 bool player::res_polar_vortex() const
 {
-    // Full control of the winds around you can negate a hostile polar vortex.
+    if (species.genus() == SP_MONSTER && you.monster_instance->res_polar_vortex())
+        return true;
+    // Full control of the winds around you can negate a hostile tornado.
     return duration[DUR_VORTEX] ? 1 : 0;
 }
 
@@ -6197,9 +6301,14 @@ int player::willpower(bool /*calc_unid*/) const
 int player_willpower(bool calc_unid, bool temp)
 {
 
-    if (temp && you.form == transformation::shadow)
+    if (temp && you.form == transformation::shadow
+        || you.species == SP_MONSTER
+            && you.monster_instance->willpower() == WILL_INVULN)
+    {
         return WILL_INVULN;
+    }
 
+    // TODO: should this also start at the instance's MR?
     int rm = you.experience_level * species::get_wl_modifier(you.species);
 
     // randarts
@@ -6357,13 +6466,6 @@ bool player::fights_well_unarmed(int heavy_armour_penalty)
         && x_chance_in_y(2, 1 + heavy_armour_penalty);
 }
 
-bool player::racial_permanent_flight() const
-{
-    return get_mutation_level(MUT_TENGU_FLIGHT)
-        || get_mutation_level(MUT_BIG_WINGS)
-        || has_mutation(MUT_FLOAT);
-}
-
 /**
  * Check for sources of flight from species, forms, and (optionally) equipment.
  */
@@ -6375,6 +6477,16 @@ bool player::permanent_flight(bool include_equip) const
     return include_equip && attribute[ATTR_PERM_FLIGHT] // equipment
         || racial_permanent_flight()                    // species muts
         || get_form()->enables_flight();
+
+}
+
+bool player::racial_permanent_flight() const
+{
+    return get_mutation_level(MUT_TENGU_FLIGHT)
+        || get_mutation_level(MUT_BIG_WINGS)
+        || has_mutation(MUT_FLOAT)
+        // TODO: reconcile with permaflight changes
+        || species == SP_MONSTER && monster_instance->airborne();
 }
 
 /**
@@ -6409,7 +6521,16 @@ undead_state_type player::undead_state(bool temp) const
 {
     if (temp && form == transformation::lich)
         return US_UNDEAD;
-    return species::undead_type(species);
+
+    // everything in HUNGRY_DEAD or SEMI_UNDEAD should be handled by a player
+    // species
+    if (species.genus() == SP_MONSTER
+        && you.monster_instance->holiness() & MH_UNDEAD) // TODO: MH_NONLIVING?
+    {
+        return US_UNDEAD;
+    }
+
+    return species::undead_type(species.genus());
 }
 
 bool player::nightvision() const
@@ -6899,7 +7020,8 @@ bool player::innate_sinv() const
 
 bool player::invisible() const
 {
-    return (duration[DUR_INVIS] || form == transformation::shadow)
+    return (duration[DUR_INVIS] || form == transformation::shadow
+                || species == SP_MONSTER && monster_instance->invisible())
            && !backlit();
 }
 
@@ -7012,8 +7134,10 @@ bool player::can_drink(bool temp) const
 
 bool player::is_stationary() const
 {
+    // TODO: stationary monsters -- should they be more than just a joke?
     return form == transformation::tree
-        || you.duration[DUR_LOCKED_DOWN];
+        || you.duration[DUR_LOCKED_DOWN]
+        || species == SP_MONSTER && monster_instance->is_stationary();
 }
 
 bool player::malmutate(const string &reason)
@@ -7715,7 +7839,29 @@ void player_open_door(coord_def doorpos)
     string door_open_verb = env.markers.property_at(doorpos, MAT_ANY,
                                                     "door_verb_open");
 
-    if (you.berserk())
+    bool destroy_door = false;
+
+    if (you.species == SP_MONSTER &&
+        mons_can_destroy_door(*you.monster_instance, doorpos))
+    {
+        // weirdly, the monster version doesn't make sound. Also, monsters
+        // will move onto the door spot. For simplicity, we keep player
+        // position the same -- but (TODO) should revisit this, as the
+        // behavior feels a bit odd.
+        mprf(MSGCH_SOUND, "You crash into the door, destroying it!");
+        noisy(15, you.pos());
+        destroy_door = true;
+    }
+    else if (you.species == SP_MONSTER &&
+        mons_can_eat_door(*you.monster_instance, doorpos))
+    {
+        // TODO: player jelly division
+        // also, they only eat doors one tile at a time
+        monster_jelly_grows(*you.monster_instance);
+        mprf(MSGCH_SOUND, "You eat the door!");
+        destroy_door = true;
+    }
+    else if (you.berserk())
     {
         // XXX: Better flavour for larger doors?
         if (silenced(you.pos()))
@@ -7780,7 +7926,10 @@ void player_open_door(coord_def doorpos)
     {
         if (cell_is_runed(dc))
             explored_tracked_feature(env.grid(dc));
-        dgn_open_door(dc);
+        if (destroy_door)
+            env.grid(dc) = DNGN_FLOOR;
+        else
+            dgn_open_door(dc);
         set_terrain_changed(dc);
         dungeon_events.fire_position_event(DET_DOOR_OPENED, dc);
 
@@ -7838,6 +7987,21 @@ void player_close_door(coord_def doorpos)
         noun = door_desc_noun.c_str();
         waynoun = noun;
     }
+
+    if (you.species == SP_MONSTER &&
+        mons_can_destroy_door(*you.monster_instance, doorpos))
+    {
+        mprf("You are too clumsy to close the %s!", waynoun);
+        return;
+    }
+    else if (you.species == SP_MONSTER &&
+        mons_can_eat_door(*you.monster_instance, doorpos))
+    {
+        // TODO: possibly jelly should eat open doors as well
+        mprf("You are too acidic to close the %s!", waynoun);
+        return;
+    }
+    // TODO: wording for monster species that normally can't use tools?
 
     for (const coord_def& dc : all_door)
     {
@@ -8022,6 +8186,43 @@ string player::hands_act(const string &plural_verb,
 {
     const bool space = !object.empty() && !_is_end_punct(object[0]);
     return "Your " + hands_verb(plural_verb) + (space ? " " : "") + object;
+}
+
+string player::species_appellation(bool include_job, bool article) const
+{
+    if (you.species.mon_species == MONS_LERNAEAN_HYDRA
+            || you.species.mon_species == MONS_ROYAL_JELLY
+            || you.species.mon_species == MONS_THE_ENCHANTRESS
+            || you.species.mon_species == MONS_SERPENT_OF_HELL
+            || mons_species(you.species.mon_species) == MONS_SERPENT_OF_HELL)
+    {
+        // just use `the X`
+        // is there a better way to get the article here??
+        return get_job_name(you.char_class);
+    }
+    string r;
+    if (you.species.is_monster())
+    {
+        if (article)
+            r += "the ";
+        if (article && mons_is_unique(you.species.mon_species)
+            // Always add `monstrous` when there is potential confusion
+            || !you.species.is_genus_monster()
+               && !mons_is_unique(you.species.mon_species))
+        {
+            r +=  species::name(you.species, species::SPNAME_ADJ) + " ";
+        }
+        r += get_job_name(you.char_class);
+    }
+    else
+    {
+        if (article)
+            r += "the ";
+        r += species::name(you.species);
+        if (include_job)
+            r = r + " " + get_job_name(you.char_class);
+    }
+    return r;
 }
 
 int player::inaccuracy() const

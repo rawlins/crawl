@@ -29,6 +29,7 @@
 #include "movement.h"
 #include "player-stats.h"
 #include "religion.h"
+#include "species.h"
 #include "spl-damage.h"
 #include "state.h"
 #include "terrain.h"
@@ -171,7 +172,9 @@ int player::get_max_xl() const
 
 bool player::can_pass_through_feat(dungeon_feature_type grid) const
 {
-    return !feat_is_solid(grid) && grid != DNGN_MALIGN_GATEWAY;
+    return !feat_is_solid(grid) && grid != DNGN_MALIGN_GATEWAY
+        || species == SP_MONSTER && feat_is_tree(grid)
+                                 && mons_flattens_trees(*monster_instance);
 }
 
 bool player::is_habitable_feat(dungeon_feature_type actual_grid) const
@@ -211,6 +214,7 @@ int player::damage_type(int)
  */
 brand_type player::damage_brand(int)
 {
+    // player monsters handled in attack classes
     // confusing touch always overrides
     if (duration[DUR_CONFUSING_TOUCH])
         return SPWPN_CONFUSE;
@@ -280,6 +284,19 @@ random_var player::attack_delay(const item_def *projectile, bool rescale) const
         attk_delay -= div_rand_round(random_var(wpn_sklev), DELAY_SCALE);
         if (get_weapon_brand(*weap) == SPWPN_SPEED)
             attk_delay = div_rand_round(attk_delay * 2, 3);
+    }
+
+    if (projectile && species == SP_MONSTER)
+    {
+        // this allows speeds lower than FASTEST_PLAYER_THROWING_SPEED
+        attk_delay = attk_delay *
+            mons_energy_to_delay(*you.monster_instance, EUT_MISSILE) / 10;
+    }
+    else
+    {
+        // TODO: are there any cases where this should go lower than 3?
+        attk_delay = attk_delay *
+            mons_energy_to_delay(*you.monster_instance, EUT_ATTACK) / 10;
     }
 
     // At the moment it never gets this low anyway.
@@ -395,7 +412,9 @@ bool player::could_wield(const item_def &item, bool ignore_brand,
 
         return true;
     }
-    else if (you.has_mutation(MUT_NO_GRASPING))
+    else if (you.has_mutation(MUT_NO_GRASPING)
+        || species == SP_MONSTER
+            && mons_class_itemuse(species) < MONUSE_STARTING_EQUIPMENT)
     {
         if (!quiet)
             mpr("You can't use weapons.");
@@ -648,6 +667,7 @@ string player::unarmed_attack_name() const
     else if (has_usable_tentacles(true))
         default_name = "Tentacles";
 
+    // TODO all the unarmed monsters
     return get_form()->get_uc_attack_name(default_name);
 }
 
@@ -873,6 +893,8 @@ int player::heads() const
 {
     if (props.exists(HYDRA_FORM_HEADS_KEY))
         return props[HYDRA_FORM_HEADS_KEY].get_int();
+    else if (you.species == SP_MONSTER) // don't use genus because of 2-headed ogres
+        return you.monster_instance->heads();
     return 1; // not actually always true
 }
 

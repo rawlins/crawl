@@ -19,6 +19,7 @@
 #include "cio.h"
 #include "coordit.h"
 #include "dactions.h"
+#include "database.h"
 #include "delay.h"
 #include "describe.h"
 #include "english.h"
@@ -257,11 +258,19 @@ void init_mut_index()
     }
 }
 
-static const mutation_def& _get_mutation_def(mutation_type mut)
+static const mutation_def _get_mutation_def(mutation_type mut)
 {
     ASSERT_RANGE(mut, 0, NUM_MUTATIONS);
     ASSERT(mut_index[mut] != -1);
-    return mut_data[mut_index[mut]];
+    mutation_def m(mut_data[mut_index[mut]]);
+    // hacky...monster species let you override the normal caps
+    // TODO: just set explicit different caps for this case so that
+    // validation can happen?
+    // relec, rpois: cap 3
+    // fast: cap ?
+    if (you.species == SP_MONSTER && you.mutation[mut] > m.levels)
+        m.levels = you.mutation[mut];
+    return m;
 }
 
 /*
@@ -865,17 +874,30 @@ static vector<string> _get_mutations(bool terse)
             result.push_back("AC +" + to_string(ac));
         else
         {
-            // XX generalize this code somehow?
-            const string scale_clause = string(species::scale_type(you.species))
-                  + " scales are "
-                  + (you.species == SP_GREY_DRACONIAN ? "very " : "") + "hard";
+            string scales = species::scale_type(you.species);
+            if (scales.size() == 0 && you.species == SP_MONSTER)
+            {
+                const int r_ac = you.racial_ac(false);
+                scales = string("physical defenses are ")
+                            + (r_ac > 1500 ? "extremely strong"
+                             : r_ac > 700 ? "very strong"
+                             : r_ac > 200 ? "strong"
+                             : "enhanced");
+            }
+            else
+            {
+                // XX generalize this code somehow?
+                scales = scales
+                      + " scales are "
+                      + (you.species.genus() == SP_GREY_DRACONIAN ? "very " : "") + "hard";
+            }
 
             result.push_back(_annotate_form_based(
-                        make_stringf("Your %s. (AC +%d)", you.species == SP_NAGA
+                        make_stringf("Your %s. (AC +%d)", you.species.genus() == SP_NAGA
                                             ? "serpentine skin is tough"
-                                            : you.species == SP_GARGOYLE
+                                            : you.species.genus() == SP_GARGOYLE
                                             ? "stone body is resilient"
-                                            : scale_clause.c_str(),
+                                            : scales.c_str(),
                            ac),
                         player_is_shapechanged()
                         && !(species::is_draconian(you.species)
@@ -950,6 +972,7 @@ static vector<string> _get_mutations(bool terse)
         armour_mut = terse ? "unfitting armour"
             : "You cannot fit into any form of body armour.";
     }
+    // TODO handle mons_class_itemuse(you.species) < MONUSE_STARTING_EQUIPMENT) here
     if (!weapon_mut.empty() && !you.has_mutation(MUT_NO_GRASPING))
         result.push_back(_innatemut(weapon_mut, terse));
     if (!armour_mut.empty() && !you.has_mutation(MUT_NO_ARMOUR))
@@ -1033,6 +1056,42 @@ string describe_mutations(bool drop_title)
         result += "<white>";
         result += "Innate Abilities, Weirdness & Mutations";
         result += "</white>\n\n";
+    }
+
+    if (you.monster_instance)
+    {
+        // for monster species, this screen displays some monster info too.
+        bool has_stat_desc = false;
+        monster_info mi(you.monster_instance.get());
+
+        string title = getMiscString(mi.common_name(DESC_DBNAME) + " title");
+        if (title.empty())
+            title = uppercase_first(mi.full_name(DESC_A)) + ".";
+
+        if (!title.empty())
+        {
+            result += "<white>You are ";
+            result += title;
+            result += ".</white>\n\n";
+        }
+
+        string db_name;
+        if (mi.mname.empty())
+            db_name = mi.db_name();
+        else
+            db_name = mi.full_name(DESC_PLAIN);
+
+        if (mons_species(mi.type) == MONS_SERPENT_OF_HELL)
+            db_name += " " + serpent_of_hell_flavour(mi.type);
+
+
+        describe_info inf;
+        get_monster_db_desc(mi, inf, has_stat_desc);
+
+        // show quote? `getQuoteString(db_name);`
+        result += "<lightgray>";
+        result += getLongDescription(db_name);
+        result += "</lightgray>\n";
     }
 
     const vector<string> mutations = _get_mutations(false);
@@ -2514,7 +2573,13 @@ string mutation_desc(mutation_type mut, int level, bool colour,
     else if (have_passive(passive_t::no_mp_regen) && mut == MUT_ANTIMAGIC_BITE)
         result = "Your bite disrupts the magic of your enemies.";
     else if (result.empty() && level > 0)
-        result = mdef.have[level - 1];
+        result = mdef.have[min(level, 3) - 1];
+
+    if (you.species == SP_MONSTER && level > 3)
+    {
+        // monster species can get extra levels of some mutations.
+        result += make_stringf(" (+%d)", level);
+    }
 
     if (!ignore_player)
     {

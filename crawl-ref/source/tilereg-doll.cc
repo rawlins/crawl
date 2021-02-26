@@ -52,7 +52,7 @@ static int _get_next_part(int cat, int part, int inc)
 
     if (cat == TILEP_PART_BASE)
     {
-        offset   = tilep_species_to_base_tile(you.species, you.experience_level);
+        offset   = tilep_species_to_base_tile(you.species.genus(), you.experience_level);
         max_part = tile_player_count(offset);
     }
 
@@ -131,7 +131,7 @@ void DollEditRegion::render()
     int max_part = tile_player_part_count[m_cat_idx];
     if (m_cat_idx == TILEP_PART_BASE)
     {
-        tileidx_t idx = tilep_species_to_base_tile(you.species, you.experience_level);
+        tileidx_t idx = tilep_species_to_base_tile(you.species.genus(), you.experience_level);
         max_part = tile_player_count(idx) - 1;
     }
 
@@ -365,7 +365,7 @@ void DollEditRegion::run()
 
     // Initialise job default.
     m_job_default = equip_doll;
-    tilep_race_default(you.species, you.experience_level, &m_job_default);
+    tilep_race_default(you.species.genus(), you.experience_level, &m_job_default);
     tilep_job_default(you.char_class, &m_job_default);
 
     // Read predefined dolls from file.

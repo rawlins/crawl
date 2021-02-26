@@ -264,38 +264,93 @@ bool fight_melee(actor *attacker, actor *defender, bool *did_hit, bool simu)
             return true; // Is this right? We did take time, but we didn't melee
         }
 
-        melee_attack attk(&you, defender);
-
-        if (simu)
-            attk.simu = true;
-
-        // We're trying to hit a monster, break out of travel/explore now.
-        interrupt_activity(activity_interrupt::hit_monster,
-                           defender->as_monster());
-
-        // Check if the player is fighting with something unsuitable,
-        // or someone unsuitable.
-        if (you.can_see(*defender) && !simu
-            && !wielded_weapon_check(attk.weapon))
+        if (you.species.is_genus_monster())
         {
-            you.turn_is_over = false;
-            return false;
+            // genus monster attacks are handled as true multi-attacks. For
+            // monsters with a player species genus, we use aux attacks
+            // instead. n.b. no multitargeting.
+            const int nrounds = you.monster_instance->has_hydra_multi_attack()
+                        ? attacker->heads() + MAX_NUM_ATTACKS - 1
+                        : MAX_NUM_ATTACKS;
+            coord_def pos = defender->pos();
+            int effective_attack_number = 0;
+            int attack_number;
+            bool contact;
+            for (attack_number = 0; attack_number < nrounds && attacker->alive();
+                ++attack_number, ++effective_attack_number)
+            {
+                // TODO: can some of this code be consolidated?
+                if (!attacker->alive())
+                    return false;
+                // We're trying to hit a monster, break out of travel/explore now.
+                interrupt_activity(activity_interrupt::hit_monster,
+                                   defender->as_monster());
+
+                // Monster went away?
+                if (!defender->alive()
+                    || defender->pos() != pos
+                    || defender->is_banished())
+                {
+                    break;
+                }
+                // TODO: AF_KITE?
+
+                melee_attack melee_attk(attacker, defender, attack_number,
+                        effective_attack_number);
+
+                if (simu)
+                    melee_attk.simu = true;
+
+                // TODO: does effective attack num matter here?
+                if (!melee_attk.attack())
+                    effective_attack_number = melee_attk.effective_attack_number;
+
+                contact |= melee_attk.did_hit;
+
+                if (!simu && will_have_passive(passive_t::shadow_attacks))
+                    dithmenos_shadow_melee(defender);
+            }
+            if (did_hit)
+                *did_hit |= contact;
+
+            // for player species genus monsters this is handled
+            // in phase aux.
+            if (contact)
+                print_wounds(*defender->as_monster());
         }
-
-        if (!attk.attack())
+        else
         {
-            // Attack was cancelled or unsuccessful...
-            if (attk.cancel_attack)
+            melee_attack attk(&you, defender);
+            if (simu)
+                attk.simu = true;
+
+            // We're trying to hit a monster, break out of travel/explore now.
+            interrupt_activity(activity_interrupt::hit_monster,
+                               defender->as_monster());
+
+            // Check if the player is fighting with something unsuitable,
+            // or someone unsuitable.
+            if (you.can_see(*defender) && !simu
+                && !wielded_weapon_check(attk.weapon))
+            {
                 you.turn_is_over = false;
-            return !attk.cancel_attack;
+                return false;
+            }
+
+            if (!attk.attack())
+            {
+                // Attack was cancelled or unsuccessful...
+                if (attk.cancel_attack)
+                    you.turn_is_over = false;
+                return !attk.cancel_attack;
+            }
+
+            if (did_hit)
+                *did_hit = attk.did_hit;
+
+            if (!simu && will_have_passive(passive_t::shadow_attacks))
+                dithmenos_shadow_melee(defender);
         }
-
-        if (did_hit)
-            *did_hit = attk.did_hit;
-
-        if (!simu && will_have_passive(passive_t::shadow_attacks))
-            dithmenos_shadow_melee(defender);
-
         return true;
     }
 

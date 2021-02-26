@@ -575,6 +575,8 @@ bool actor::haloed() const
     return ::haloed(pos());
 }
 
+static int _mons_class_halo_radius(monster_type type);
+
 int player::halo_radius() const
 {
     int size = -1;
@@ -585,6 +587,11 @@ int player::halo_radius() const
         size = min((int)piety, piety_breakpoint(5)) * you.normal_vision
                                                     / piety_breakpoint(5);
     }
+
+    // for player monsters that worship TSO, let piety override if it's high
+    // enough
+    if (you.species.is_monster())
+        size = max(size, _mons_class_halo_radius(you.species));
 
     if (player_equip_unrand(UNRAND_EOS))
         size = max(size, 3);

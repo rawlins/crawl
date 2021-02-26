@@ -1,0 +1,18 @@
+enum: SP_MONSTER
+monster: MONS_HUMAN
+name: "Monster"
+adjective: "Monstrous"
+difficulty: Advanced
+difficulty_priority: 100
+aptitudes:
+  xp: 1
+  hp: 0
+  mp_mod: 0
+  mr: 0 # this is fully overridden by the monster
+str: 8
+int: 8
+dex: 8
+levelup_stat_frequency: 4
+recommended_jobs:
+  - JOB_FIGHTER # crashes with nothing here
+create_enum: true

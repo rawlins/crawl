@@ -49,6 +49,7 @@
 #include "mon-place.h"
 #include "mon-util.h"
 #include "movement.h"
+#include "mon-cast.h"
 #include "mutation.h"
 #include "notes.h"
 #include "options.h"
@@ -59,6 +60,7 @@
 #include "religion.h"
 #include "rltiles/tiledef-icons.h"
 #include "skills.h"
+#include "species.h"
 #include "spl-book.h"
 #include "spl-cast.h"
 #include "spl-clouds.h"
@@ -333,6 +335,17 @@ static const ability_def Ability_List[] =
 
     { ABIL_ROLLING_CHARGE, "Rolling Charge", 0, 0, 0, {}, abflag::none },
     { ABIL_BLINKBOLT, "Blinkbolt", 0, 0, 0, {}, abflag::none },
+
+    { ABIL_MONSTER_SPECIES_1, "buggy", 0, 0, 0, {}, abflag::none },
+    { ABIL_MONSTER_SPECIES_2, "buggy", 0, 0, 0, {}, abflag::none },
+    { ABIL_MONSTER_SPECIES_3, "buggy", 0, 0, 0, {}, abflag::none },
+    { ABIL_MONSTER_SPECIES_4, "buggy", 0, 0, 0, {}, abflag::none },
+    { ABIL_MONSTER_SPECIES_5, "buggy", 0, 0, 0, {}, abflag::none },
+    { ABIL_MONSTER_SPECIES_6, "buggy", 0, 0, 0, {}, abflag::none },
+    { ABIL_MONSTER_SPECIES_7, "buggy", 0, 0, 0, {}, abflag::none },
+    { ABIL_MONSTER_SPECIES_8, "buggy", 0, 0, 0, {}, abflag::none },
+    { ABIL_MONSTER_SPECIES_9, "buggy", 0, 0, 0, {}, abflag::none },
+    { ABIL_MONSTER_SPECIES_10, "buggy", 0, 0, 0, {}, abflag::none },
 
     // EVOKE abilities use Evocations and come from items.
     // Teleportation and Blink can also come from mutations
@@ -1060,7 +1073,7 @@ talent get_talent(ability_type ability, bool check_confused)
     // Placeholder handling, part 1: The ability we have might be a
     // placeholder, so convert it into its corresponding ability before
     // doing anything else, so that we'll handle its flags properly.
-    talent result { fixup_ability(ability), 0, 0, false };
+    talent result { fixup_ability(ability), 0, 0, false, SPELL_NO_SPELL };
     const ability_def &abil = get_ability_def(result.which);
 
     if (check_confused && you.confused()
@@ -1084,8 +1097,43 @@ talent get_talent(ability_type ability, bool check_confused)
     return result;
 }
 
+vector<talent> get_monspecies_talents()
+{
+    vector<talent> results;
+    ASSERT(you.species == SP_MONSTER);
+    int abil = ABIL_MONSTER_SPECIES_1;
+    for (auto s : you.monster_instance->spells)
+    {
+        ASSERT(abil <= ABIL_MONSTER_SPECIES_10);
+        talent result { static_cast<ability_type>(abil), 0, 0, false, s.spell };
+        const int index = find_ability_slot(static_cast<ability_type>(abil));
+        result.hotkey = index >= 0 ? index_to_letter(index) : 0;
+        result.fail = 0; // TODO: what to do here?
+        results.push_back(result);
+        abil++;
+    }
+    return results;
+}
+
+static bool _is_monabil(const ability_type a)
+{
+    return a >= ABIL_MONSTER_SPECIES_1 && a <= ABIL_MONSTER_SPECIES_10;
+}
+
+static spell_type _monabil_to_spell(const ability_type a)
+{
+    ASSERT(you.monster_instance);
+    ASSERT(_is_monabil(a));
+    ASSERT(static_cast<unsigned int>(a) - ABIL_MONSTER_SPECIES_1 <=
+              you.monster_instance->spells.size());
+    return you.monster_instance->spells[static_cast<unsigned int>(a)
+                                              - ABIL_MONSTER_SPECIES_1].spell;
+}
+
 const char* ability_name(ability_type ability)
 {
+    if (_is_monabil(ability))
+        return spell_title(_monabil_to_spell(ability));
     return get_ability_def(ability).name;
 }
 
@@ -1954,6 +2002,14 @@ static void _cause_vampire_bat_form_stat_drain()
     lose_stat(STAT_DEX, VAMPIRE_BAT_FORM_STAT_DRAIN);
 }
 
+static spret _do_monability(const ability_type a)
+{
+    ASSERT(you.monster_instance);
+    auto spell = _monabil_to_spell(a);
+    return your_spells(spell,
+                        mons_spellpower(*you.monster_instance, spell), false);
+}
+
 /*
  * Use an ability.
  *
@@ -1970,6 +2026,12 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target)
         target = &target_local;
 
     bolt beam;
+
+    if (_is_monabil(abil.ability))
+    {
+        fail_check();
+        return _do_monability(abil.ability);
+    }
 
     // Note: the costs will not be applied until after this switch
     // statement... it's assumed that only failures have returned! - bwr
@@ -3034,7 +3096,7 @@ static spret _do_ability(const ability_def& abil, bool fail, dist *target)
             return spret::abort;
         }
         if (you.hp == you.hp_max && you.magic_points == you.max_magic_points
-            && !you.duration[DUR_CONF]
+            && !you.confused()
             && !you.duration[DUR_SLOW]
             && !you.attribute[ATTR_HELD]
             && !you.petrifying()
@@ -3417,6 +3479,7 @@ bool player_has_ability(ability_type abil, bool include_unusable)
     abil = fixup_ability(abil);
     if (abil == ABIL_NON_ABILITY || abil == NUM_ABILITIES)
         return false;
+    auto species = you.species.genus();
 
     if (is_religious_ability(abil))
     {
@@ -3435,7 +3498,7 @@ bool player_has_ability(ability_type abil, bool include_unusable)
     switch (abil)
     {
     case ABIL_HEAL_WOUNDS:
-        return you.species == SP_DEEP_DWARF;
+        return species == SP_DEEP_DWARF;
     case ABIL_SHAFT_SELF:
         if (crawl_state.game_is_sprint() || brdepth[you.where_are_you] == 1)
             return false;
@@ -3511,7 +3574,6 @@ bool player_has_ability(ability_type abil, bool include_unusable)
 vector<talent> your_talents(bool check_confused, bool include_unusable, bool ignore_piety)
 {
     vector<talent> talents;
-
     // TODO: can we just iterate over ability_type?
     vector<ability_type> check_order =
         { ABIL_HEAL_WOUNDS,
@@ -3589,6 +3651,13 @@ vector<talent> your_talents(bool check_confused, bool include_unusable, bool ign
         }
         // In theory, we could be left with an unreachable ability
         // here (if you have 53 or more abilities simultaneously).
+    }
+
+    if (you.species == SP_MONSTER)
+    {
+        auto species_talents = get_monspecies_talents();
+        talents.insert(talents.end(),
+                              species_talents.begin(), species_talents.end());
     }
 
     return talents;

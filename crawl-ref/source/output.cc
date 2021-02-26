@@ -1093,11 +1093,21 @@ static void _get_status_lights(vector<status_light>& out)
     };
 
     bitset<STATUS_LAST_STATUS + 1> done;
-    for (unsigned important : important_statuses)
+
+    if (you.confused() && !you.duration[DUR_CONF])
     {
-        _add_status_light_to_out(important, out);
-        done.set(important);
+        // perma-confuse
+        status_light sl(MAGENTA, "Conf");
+        out.push_back(sl);
+        done.set(DUR_CONF);
     }
+
+    for (unsigned important : important_statuses)
+        if (!done[important])
+        {
+            _add_status_light_to_out(important, out);
+            done.set(important);
+        }
 
     for (unsigned status = 0; status <= STATUS_LAST_STATUS ; ++status)
         if (!done[status])
@@ -1250,7 +1260,7 @@ static void _redraw_title()
     // Minotaur [of God] [Piety]
     textcolour(YELLOW);
     CGOTOXY(1, 2, GOTO_STAT);
-    string species = species::name(you.species);
+    string species = you.species_appellation(false);
     NOWRAP_EOL_CPRINTF("%s", species.c_str());
     if (you_worship(GOD_NO_GOD))
     {
@@ -2006,9 +2016,15 @@ static string _overview_screen_title(int sw)
 {
     string title = make_stringf(" %s ", player_title().c_str());
 
-    string species_job = make_stringf("(%s %s)",
+    string species_job;
+    if (you.species == SP_MONSTER)
+        species_job = "(Monster)";
+    else
+    {
+        species_job = make_stringf("(%s %s)",
                                       species::name(you.species).c_str(),
                                       get_job_name(you.char_class));
+    }
 
     handle_real_time();
     string time_turns = make_stringf(" Turns: %d, Time: ", you.num_turns)
@@ -2020,7 +2036,7 @@ static string _overview_screen_title(int sw)
     int linelength = strwidth(you.your_name) + title_width
                    + char_width + strwidth(time_turns);
 
-    if (linelength >= sw)
+    if (linelength >= sw && you.species != SP_MONSTER)
     {
         species_job = make_stringf("(%s%s)",
                                     species::get_abbrev(you.species),
@@ -2047,6 +2063,25 @@ static string _overview_screen_title(int sw)
 
     text += time_turns;
     text += "</yellow>\n";
+
+    if (you.species == SP_MONSTER)
+    {
+        text += "<yellow>You are ";
+        bool has_stat_desc = false;
+        describe_info inf;
+        formatted_string desc;
+        // keep the description code from inserting `your` for names beginning
+        // with `the`.
+        unwind_var<mon_attitude_type> tmp_att(you.monster_instance->attitude,
+                                                                ATT_HOSTILE);
+        monster_info mi(you.monster_instance.get());
+        get_monster_db_desc(mi, inf, has_stat_desc);
+
+        if (inf.title.size() > 1 && starts_with(inf.title, "A "))
+            inf.title[0] = 'a';
+        text += inf.title;
+        text += "</yellow>\n";
+    }
 
     return text;
 }

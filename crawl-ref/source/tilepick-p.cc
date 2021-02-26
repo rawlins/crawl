@@ -445,7 +445,7 @@ tileidx_t tilep_equ_boots(const item_def &item)
 
     if (item.sub_type == ARM_BARDING)
     {
-        if (you.species == SP_NAGA)
+        if (you.species.genus() == SP_NAGA)
             return TILEP_BOOTS_NAGA_BARDING + min(etype, 3);
         // placeholder for palentonga
         return TILEP_BOOTS_CENTAUR_BARDING + min(etype, 3);
@@ -460,6 +460,9 @@ tileidx_t tilep_equ_boots(const item_def &item)
 tileidx_t tileidx_player()
 {
     tileidx_t ch = TILEP_PLAYER;
+
+    if (you.species.is_monster())
+        ch = tileidx_monster_base(you.species.mon_species, 0);
 
     // Handle shapechange first
     switch (you.form)
@@ -486,7 +489,7 @@ tileidx_t tileidx_player()
     case transformation::shadow:    ch = TILEP_TRAN_SHADOW;    break;
     case transformation::dragon:
     {
-        switch (you.species)
+        switch (you.species.genus())
         {
         case SP_BLACK_DRACONIAN:   ch = TILEP_TRAN_DRAGON_BLACK;   break;
         case SP_YELLOW_DRACONIAN:  ch = TILEP_TRAN_DRAGON_YELLOW;  break;
@@ -1199,7 +1202,7 @@ void tilep_print_parts(char *fbuf, const dolls_data &doll)
         {
             if (p == TILEP_PART_BASE)
             {
-                idx -= tilep_species_to_base_tile(you.species,
+                idx -= tilep_species_to_base_tile(you.species.genus(),
                                                   you.experience_level);
             }
             else if (idx != 0)

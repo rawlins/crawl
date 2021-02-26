@@ -2060,6 +2060,17 @@ mon_attack_def mons_attack_spec(const monster& m, int attk_number,
         }
     }
 
+    if (mon.type == MONS_ORB_OF_FIRE && you.species == SP_MONSTER
+        && attk_number == 0 && you.monster_instance.get() == &m)
+    {
+        // OoFs are attackless as monsters for balance reasons -- it's better
+        // if they just do their abilities. However, let's assume that a
+        // player OoF has become smart enough to singe things too.
+        attk.type = AT_HIT;
+        attk.flavour = AF_PURE_FIRE;
+        attk.damage = 0;
+    }
+
     if (!base_flavour)
     {
         // TODO: randomization here is not the greatest way of doing any of
@@ -2141,6 +2152,7 @@ string mon_attack_name(attack_type attack, bool with_object)
 
     const int verb_index = attack - AT_FIRST_ATTACK;
     ASSERT(verb_index < (int)ARRAYSZ(attack_types));
+    ASSERT(verb_index >= 0);
 
     if (with_object)
         return attack_types[verb_index];
@@ -4451,10 +4463,30 @@ string do_mon_str_replacements(const string &in_msg, const monster& mons,
 
     description_level_type nocap = DESC_THE, cap = DESC_THE;
 
-    if (mons.is_named() && you.can_see(mons))
+    if (mons.is_named() && you.can_see(mons) || mons.is_player_proxy())
     {
-        const string name = mons.name(DESC_THE);
+        if (mons.is_player_proxy()
+            && (msg.find("@The_monster@") == 0 || msg.find("@the_monster@") == 0))
+        {
+            // probably extremely brittle. If the sentence starts with the
+            // monster name, find the immediately following verb and reconjugate
+            // for the player. TODO: punctuation after verb
+            const size_t first_space = msg.find(" ");
+            if (first_space != string::npos)
+            {
+                const size_t second_space = msg.find(" ", first_space + 1);
+                dprf("verb from %lu to %lu", first_space, second_space);
+                if (second_space != string::npos && second_space - first_space > 1)
+                {
+                    const size_t len = second_space - first_space - 1;
+                    const string verb = msg.substr(first_space + 1, len);
+                    dprf("replacing '%s' with '%s'", verb.c_str(), mons.conj_verb(deconjugate_verb(verb)).c_str());
+                    msg.replace(first_space + 1, len, mons.conj_verb(deconjugate_verb(verb)));
+                }
+            }
+        }
 
+        const string name = mons.name(DESC_THE);
         msg = replace_all(msg, "@the_something@", name);
         msg = replace_all(msg, "@The_something@", name);
         msg = replace_all(msg, "@the_monster@",   name);
@@ -4467,6 +4499,7 @@ string do_mon_str_replacements(const string &in_msg, const monster& mons,
     {
         nocap = DESC_PLAIN;
         cap   = DESC_PLAIN;
+        dprf("friendly monster replace");
 
         msg = replace_all(msg, "@the_something@", "your @the_something@");
         msg = replace_all(msg, "@The_something@", "Your @The_something@");
@@ -4680,7 +4713,7 @@ string do_mon_str_replacements(const string &in_msg, const monster& mons,
         msg = replace_all(msg, "@says@", "buggily says");
     }
     else
-        msg = replace_all(msg, "@says@", sound_list[s_type]);
+        msg = replace_all(msg, "@says@", mons.conj_verb(sound_list[s_type]));
 
     msg = maybe_capitalise_substring(msg);
 

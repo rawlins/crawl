@@ -78,11 +78,14 @@ static bool _has_other_cloud_ring(monster* mons, enchant_type ench)
  */
 void update_mons_cloud_ring(monster* mons)
 {
+    actor *target = mons && mons->is_player_proxy()
+        ? static_cast<actor *>(&you)
+        : static_cast<actor *>(mons);
     for (auto i : _cloud_ring_ench_to_cloud)
     {
         if (mons->has_ench(i.first))
         {
-            surround_actor_with_cloud(mons, i.second);
+            surround_actor_with_cloud(target, i.second);
             break; // there can only be one cloud ring
         }
     }
@@ -1744,9 +1747,12 @@ void monster::apply_enchantment(const mon_enchant &me)
 
     case ENCH_INJURY_BOND:
         // It's hard to absorb someone else's injuries when you're dead
-        if (!me.agent() || !me.agent()->alive()
+        if ((!me.agent() || !me.agent()->alive()
             || me.agent()->mid == MID_ANON_FRIEND)
+            && !(you.species == SP_MONSTER && me.agent()
+                                        == you.monster_instance.get()))
         {
+            dprf("deleting injury bond");
             del_ench(ENCH_INJURY_BOND, true, false);
         }
         else

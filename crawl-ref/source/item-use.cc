@@ -848,8 +848,14 @@ static string _cant_wear_barding_reason(bool ignore_temporary)
  */
 bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
 {
+
+    auto species = you.species.genus();
+
     const object_class_type base_type = item.base_type;
-    if (base_type != OBJ_ARMOUR || you.has_mutation(MUT_NO_ARMOUR))
+    if (base_type != OBJ_ARMOUR
+        || you.has_mutation(MUT_NO_ARMOUR)
+        || species == SP_MONSTER
+            && mons_class_itemuse(you.species.mon_species) < MONUSE_STARTING_EQUIPMENT)
     {
         if (verbose)
             mpr("You can't wear that!");
@@ -1117,14 +1123,14 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
                 return false;
             }
 
-            if (species::is_draconian(you.species))
+            if (species::is_draconian(species))
             {
                 if (verbose)
                     mpr("You can't wear that with your reptilian head.");
                 return false;
             }
 
-            if (you.species == SP_OCTOPODE)
+            if (species == SP_OCTOPODE)
             {
                 if (verbose)
                     mpr("You can't wear that!");
@@ -1818,7 +1824,10 @@ static bool _can_puton_ring(const item_def &item)
         return false;
     if (!you_can_wear(EQ_RINGS, true))
     {
-        mpr("You can't wear that in your present form.");
+        if (!jewellery_is_amulet(item) && !you_hands_fit_rings())
+            mpr("You can't wear that.");
+        else
+            mpr("You can't wear that in your present form.");
         return false;
     }
 

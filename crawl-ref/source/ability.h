@@ -18,6 +18,7 @@ struct talent
     int hotkey;
     int fail;
     bool is_invocation;
+    spell_type mon_spell;
 };
 
 class dist;

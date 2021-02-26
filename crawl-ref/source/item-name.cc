@@ -2944,6 +2944,9 @@ bool is_useless_item(const item_def &item, bool temp, bool ident)
         if (!ident && !item_type_known(item))
             return false;
 
+        if (!jewellery_is_amulet(item) && !you_hands_fit_rings())
+            return true;
+
         // Potentially useful. TODO: check the properties.
         if (is_artefact(item))
             return false;

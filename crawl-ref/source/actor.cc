@@ -16,6 +16,7 @@
 #include "god-passive.h"
 #include "item-prop.h"
 #include "los.h"
+#include "losglobal.h"
 #include "message.h"
 #include "mon-behv.h"
 #include "mon-death.h"
@@ -38,6 +39,15 @@ bool actor::will_trigger_shaft() const
            // let's pretend that they always make their saving roll
            && !(is_monster()
                 && mons_is_elven_twin(static_cast<const monster* >(this)));
+}
+
+bool actor::is_player_proxy() const
+{
+    return is_monster()
+        && you.monster_instance
+        && (   you.monster_instance.get() == as_monster()
+            || you.species.mon_species == type && you.pos() == pos()
+               && mid == MID_PLAYER); // for monster abilities
 }
 
 level_id actor::shaft_dest() const
@@ -889,6 +899,15 @@ bool actor::torpor_slowed() const
         || stasis())
     {
         return false;
+    }
+
+    if (!is_player() &&
+        you.species == MONS_TORPOR_SNAIL
+        && cell_see_cell(you.pos(), pos(), LOS_SOLID_SEE)
+        && !is_sanctuary(you.pos())
+        && !mons_aligned(you.monster_instance.get(), this))
+    {
+        return true;
     }
 
     for (monster_near_iterator ri(pos(), LOS_SOLID_SEE); ri; ++ri)

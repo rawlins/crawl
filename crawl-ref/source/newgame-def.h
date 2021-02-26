@@ -35,6 +35,7 @@ struct newgame_def
 
     species_type species;
     job_type job;
+    monster_type monster_species;
 
     weapon_type weapon;
 
