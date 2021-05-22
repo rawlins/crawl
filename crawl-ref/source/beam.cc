@@ -3200,6 +3200,14 @@ bool bolt::misses_player()
 
 void bolt::affect_player_enchantment(bool resistible)
 {
+    // self-buff from a monster ability. This is a bit coarse, does it
+    // over-allow self-aimed enchantments to work?
+    if (agent() && agent()->is_player() && aimed_at_feet && is_enchantment()
+        && you.species.is_monster())
+    {
+        resistible = false;
+    }
+
     if (resistible
         && has_saving_throw()
         && you.check_willpower(ench_power) > 0)
