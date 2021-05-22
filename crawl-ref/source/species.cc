@@ -313,7 +313,10 @@ namespace species
             // hack: references to you
             if (you_can_wear(EQ_BODY_ARMOUR) == MB_FALSE)
                 result.push_back(terse ? "no armour" : "You cannot wear armour.");
-            if (you_can_wear(EQ_RING_ONE) == MB_FALSE)
+
+            // TODO: is there a better way to check for no rings at all?
+            // reconcile with mutation.cc ring mut code?
+            if (you_can_wear(EQ_RING_ONE) == MB_FALSE && you_can_wear(EQ_RIGHT_RING) == MB_FALSE)
                 result.push_back(terse ? "no rings" : "You cannot wear rings.");
             // right now, everything can wear an amulet, somehow
             // TODO: a bit more variation in ring possibilities
