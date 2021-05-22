@@ -1066,6 +1066,7 @@ void game_options::reset_options()
     autopickup_on    = 1;
 
     game = newgame_def();
+    game.species = SP_MONSTER;
 
     char_set      = CSET_DEFAULT;
 
