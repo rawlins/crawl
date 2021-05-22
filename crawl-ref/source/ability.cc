@@ -1124,8 +1124,13 @@ static spell_type _monabil_to_spell(const ability_type a)
 {
     ASSERT(you.monster_instance);
     ASSERT(_is_monabil(a));
-    ASSERT(static_cast<unsigned int>(a) - ABIL_MONSTER_SPECIES_1 <=
-              you.monster_instance->spells.size());
+    if (static_cast<unsigned int>(a) - ABIL_MONSTER_SPECIES_1 >=
+              you.monster_instance->spells.size())
+    {
+        // this can happen when switching species in wizmode; in general the
+        // mapping here will produce weird results when doing that
+        return SPELL_NO_SPELL;
+    }
     return you.monster_instance->spells[static_cast<unsigned int>(a)
                                               - ABIL_MONSTER_SPECIES_1].spell;
 }

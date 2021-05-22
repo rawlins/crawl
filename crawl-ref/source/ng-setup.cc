@@ -529,8 +529,10 @@ void initial_dungeon_setup()
     initialise_item_descriptions();
 }
 
-static void _setup_monster_player()
+void setup_monster_player(bool game_start)
 {
+    // XX function would be cleaner if it is part of mc_species or player?
+
     rng::generator gameplay(rng::GAMEPLAY);
 
     ASSERT(you.species.mon_species < NUM_MONSTERS);
@@ -541,8 +543,11 @@ static void _setup_monster_player()
     // hacky, but it's hard to get around all the code that has to work this
     // way: create a real monster, place it, and make a copy.
     // TODO: packs?
+    if (you.unique_creatures[you.species.mon_species])
+        you.unique_creatures.set(you.species.mon_species, false);
     monster *tmp_mons = dgn_place_monster(spec, coord_def(0,0), true, true, false);
     ASSERT(tmp_mons);
+
     // player inv should be empty before this call.
     // first, we copy the items off the monster, and clear the monster inventory.
     vector<item_def> mon_items;
@@ -560,29 +565,33 @@ static void _setup_monster_player()
     tmp_mons->flags |= MF_HARD_RESET; // prevents any items, corpses
     monster_die(*tmp_mons, KILL_DISMISSED, NON_MONSTER);
 
-    // Now move everything to the inventory.
-    for (auto &i : mon_items)
-        move_item_to_inv(i);
-
-    // Finally, do the usual newgame stuff of wielding any weapons this has
-    // provide the player.
-    for (int slot = 0; slot < ENDOFPACK; ++slot)
+    if (game_start)
     {
-        item_def& item = you.inv[slot];
-        if (item.defined())
-            _newgame_setup_item(item, slot);
+        // Now move everything to the inventory.
+        for (auto &i : mon_items)
+            move_item_to_inv(i);
+
+        // Finally, do the usual newgame stuff of wielding any weapons this has
+        // provide the player.
+        for (int slot = 0; slot < ENDOFPACK; ++slot)
+        {
+            item_def& item = you.inv[slot];
+            if (item.defined())
+                _newgame_setup_item(item, slot);
+        }
+
+        // religion
+        // conditioning this on is_priest is a little too quirky; for example
+        // dissolution is a priest but TRJ is not.
+        if (you.monster_instance->deity() <= NUM_GODS)
+        {
+            // TODO: nameless gods?? choose randomly? or maybe use monk behavior?
+            you.religion = you.monster_instance->deity();
+            you.piety = 38;
+            // init gift timeout? lugonu in abyss?
+        }
     }
 
-    // religion
-    // conditioning this on is_priest is a little too quirky; for example
-    // dissolution is a priest but TRJ is not.
-    if (you.monster_instance->deity() <= NUM_GODS)
-    {
-        // TODO: nameless gods?? choose randomly? or maybe use monk behavior?
-        you.religion = you.monster_instance->deity();
-        you.piety = 38;
-        // init gift timeout? lugonu in abyss?
-    }
     // start flying creatures in the air
     if (you.racial_permanent_flight())
         you.attribute[ATTR_PERM_FLIGHT] = 1;
@@ -621,7 +630,7 @@ static void _setup_generic(const newgame_def& ng,
     if (you.species == SP_MONSTER)
     {
         you.species = ng.monster_species;
-        _setup_monster_player();
+        setup_monster_player();
     }
 
     you.chr_class_name = get_job_name(you.char_class);

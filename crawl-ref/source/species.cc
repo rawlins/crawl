@@ -4,10 +4,12 @@
 #include "mpr.h"
 #include "species.h"
 
+#include "chardump.h"
 #include "item-prop.h"
 #include "mon-util.h"
 #include "monster.h"
 #include "mutation.h"
+#include "ng-setup.h"
 #include "output.h"
 #include "playable.h"
 #include "player.h"
@@ -32,6 +34,12 @@ species_type mc_species::genus() const
         return mons_species_to_player_species(mon_species);
     else
         return base;
+}
+
+bool mc_species::is_valid() const
+{
+    return species::is_valid(base)
+        && (!is_monster() || !invalid_monster_type(mon_species));
 }
 
 /*
@@ -823,7 +831,8 @@ namespace species
 
     bool is_valid(species_type species)
     {
-        // TODO: mc_species validity check?
+        // n.b. this is distinct from mc_species::is_valid, which is more
+        // restrictive (checks monster species).
         return 0 <= species && species < NUM_SPECIES;
     }
 
@@ -1063,9 +1072,9 @@ species_type mons_species_to_player_species(monster_type mons)
  *
  * @param sp the new species.
  */
-void change_species_to(species_type sp)
+void change_species_to(mc_species sp)
 {
-    ASSERT(sp != SP_UNKNOWN);
+    ASSERT(sp.is_valid());
 
     // Re-scale skill-points.
     for (skill_type sk = SK_FIRST_SKILL; sk < NUM_SKILLS; ++sk)
@@ -1074,9 +1083,22 @@ void change_species_to(species_type sp)
                                 / species_apt_factor(sk);
     }
 
-    species_type old_sp = you.species;
+    mc_species old_sp = you.species;
     you.species = sp;
     you.chr_species_name = species::name(sp);
+    if (you.species == SP_MONSTER)
+        setup_monster_player(false); // reinit you.monster_instance
+
+    // reset monster-specific abilities; these will just produce weird
+    // results across monsters -- there's no way to retrieve the correct
+    // name after a species change
+    for (int i = ABIL_MONSTER_SPECIES_1; i <= ABIL_MONSTER_SPECIES_10; i++)
+    {
+        const pair<caction_type, int> abilcount(CACT_ABIL, caction_compound(i));
+        if (you.action_count.count(abilcount))
+            you.action_count.erase(abilcount);
+    }
+
 
     // Change permanent mutations, but preserve non-permanent ones.
     uint8_t prev_muts[NUM_MUTATIONS];
@@ -1123,6 +1145,7 @@ void change_species_to(species_type sp)
     update_vision_range(); // for Ba, and for Ko
 
     // XX not general if there are ever any other options
+    // XX monster species
     if ((old_sp == SP_OCTOPODE) != (sp == SP_OCTOPODE))
     {
         _swap_equip(EQ_LEFT_RING, EQ_RING_ONE);

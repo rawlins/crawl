@@ -88,6 +88,7 @@ struct mc_species
     species_type genus() const;
     bool is_monster() const { return base == SP_MONSTER; }
     bool is_genus_monster() const { return genus() == SP_MONSTER; }
+    bool is_valid() const;
 
     species_type base;
     monster_type mon_species;
@@ -176,4 +177,4 @@ int mons_energy_to_delay(monster &m, energy_use_type et);
 void give_basic_mutations(mc_species species);
 void give_level_mutations(mc_species species, int xp_level);
 
-void change_species_to(species_type sp);
+void change_species_to(mc_species sp);

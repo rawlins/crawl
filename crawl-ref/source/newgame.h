@@ -25,6 +25,8 @@ bool choose_game(newgame_def& ng, newgame_def& choice,
 
 string newgame_random_name();
 
+monster_type choose_monster_species();
+
 /*
  * A structure for grouping backgrounds by category.
  */

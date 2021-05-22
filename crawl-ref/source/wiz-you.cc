@@ -21,6 +21,7 @@
 #include "message.h"
 #include "misc.h" // frombool
 #include "mutation.h"
+#include "newgame.h"
 #include "output.h"
 #include "playable.h"
 #include "player-stats.h"
@@ -108,25 +109,28 @@ void wizard_change_species()
 {
     char specs[80];
 
-    msgwin_get_line("What species would you like to be now? " ,
-                    specs, sizeof(specs));
-
-    if (specs[0] == '\0')
+    if (msgwin_get_line("What species would you like to be now (enter for monster)? " ,
+                    specs, sizeof(specs)))
     {
         canned_msg(MSG_OK);
         return;
     }
 
-    const species_type sp = species::from_str_loose(specs);
+    const species_type sp = specs[0] == '\0'
+        ? SP_MONSTER
+        : species::from_str_loose(specs);
 
-    // Means from_str_loose couldn't interpret `specs`.
-    if (sp == SP_UNKNOWN)
+    const mc_species outcome = sp == SP_MONSTER
+                        ? mc_species(choose_monster_species())
+                        : mc_species(sp);
+
+    if (!outcome.is_valid())
     {
-        mpr("That species isn't available.");
+        canned_msg(MSG_OK);
         return;
     }
 
-    change_species_to(sp);
+    change_species_to(outcome);
 }
 
 // Casts a specific spell by number or name.

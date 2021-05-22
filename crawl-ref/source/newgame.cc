@@ -583,7 +583,7 @@ static monster_type _process_monster_spec(const string &specs)
 }
 
 #define MAX_MONSTER_NAME_WIDTH 20
-static monster_type _choose_monster_species()
+monster_type choose_monster_species()
 {
     // TODO: use new ui things for this
     char buf[MAX_MONSTER_NAME_WIDTH + 1]; // FIXME: make line_reader handle widths
@@ -705,9 +705,7 @@ static monster_type _choose_monster_species()
     ui::pop_layout();
 
     if (cancel || crawl_state.seen_hups)
-        game_ended(game_exit::abort);
-
-    ASSERT(result != MONS_NO_MONSTER);
+        return MONS_NO_MONSTER;
     return result;
 }
 
@@ -1776,7 +1774,9 @@ static void _prompt_choice(int choice_type, newgame_def& ng, newgame_def& ng_cho
 {
     if (ng.species == SP_MONSTER || ng.job == JOB_MONSTER)
     {
-        ng_choice.monster_species = _choose_monster_species();
+        ng_choice.monster_species =  choose_monster_species();
+        if (invalid_monster_type(ng_choice.monster_species))
+            game_ended(game_exit::abort);
         ng_choice.species = SP_MONSTER;
         ng_choice.job = JOB_MONSTER;
         return;
