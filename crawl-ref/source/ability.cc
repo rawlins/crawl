@@ -3559,6 +3559,20 @@ bool player_has_ability(ability_type abil, bool include_unusable)
     case ABIL_EVOKE_TURN_INVISIBLE:
         return you.evokable_invis()
                                 && !you.get_mutation_level(MUT_NO_ARTIFICE);
+    case ABIL_MONSTER_SPECIES_1:
+    case ABIL_MONSTER_SPECIES_2:
+    case ABIL_MONSTER_SPECIES_3:
+    case ABIL_MONSTER_SPECIES_4:
+    case ABIL_MONSTER_SPECIES_5:
+    case ABIL_MONSTER_SPECIES_6:
+    case ABIL_MONSTER_SPECIES_7:
+    case ABIL_MONSTER_SPECIES_8:
+    case ABIL_MONSTER_SPECIES_9:
+    case ABIL_MONSTER_SPECIES_10:
+        // meaning of these varies by monster instance
+        return you.monster_instance
+            && static_cast<int>(you.monster_instance->spells.size())
+                        > static_cast<int>(abil) - ABIL_MONSTER_SPECIES_1;
     default:
         // removed abilities handled here
         return false;
