@@ -353,7 +353,7 @@ void open_door_action(coord_def move)
         return;
     }
 
-    if (you.confused())
+    if (you.confused() && !mons_class_flag(you.species, M_CONFUSED))
     {
         canned_msg(MSG_TOO_CONFUSED);
         return;
@@ -837,8 +837,9 @@ void move_player_action(coord_def move)
         const coord_def new_targ = you.pos() + move;
         // there's a little tweak here to allow perma-confused species to open
         // doors
-        if (!in_bounds(new_targ) || !you.can_pass_through(new_targ)
-                                                    && you.duration[DUR_CONF])
+        if (!in_bounds(new_targ)
+            || !you.can_pass_through(new_targ)
+                                && !mons_class_flag(you.species, M_CONFUSED))
         {
             you.turn_is_over = true;
             if (you.digging) // no actual damage

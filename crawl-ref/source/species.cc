@@ -383,6 +383,9 @@ namespace species
             if (you.heads() != 1)
                 result.push_back(terse ? make_stringf("%d heads", you.heads()) : make_stringf("You have %d heads.", you.heads()));
 
+            if (mons_class_flag(you.species, M_CONFUSED))
+                result.push_back(terse ? "confused" : "You are permanently confused.");
+
             // species-specific stuff
             if (species == MONS_ELEMENTAL_WELLSPRING)
                 result.push_back(terse ? "watery" : "You exude water.");

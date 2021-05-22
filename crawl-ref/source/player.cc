@@ -5464,7 +5464,7 @@ bool player::cannot_move() const
 
 bool player::confused() const
 {
-    if (you.monster_instance && mons_is_confused(*you.monster_instance, true))
+    if (mons_class_flag(you.species, M_CONFUSED))
         return true; // perma-confused species. TODO: monster perma-confuse is not quite this?
     return duration[DUR_CONF];
 }
@@ -7888,6 +7888,11 @@ void player_open_door(coord_def doorpos)
                 mprf(MSGCH_SOUND, "The %s%s flies open with a bang!", adj, noun);
             noisy(15, you.pos());
         }
+    }
+    else if (you.confused())
+    {
+        // perma-confused species only. TODO: sound?
+        mprf("You bump into the %s%s, nudging it open.", adj, noun);
     }
     else if (one_chance_in(skill) && !silenced(you.pos()))
     {
