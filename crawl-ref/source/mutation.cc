@@ -1067,6 +1067,15 @@ string describe_mutations(bool drop_title)
         string title = getMiscString(mi.common_name(DESC_DBNAME) + " title");
         if (title.empty())
             title = lowercase_first(mi.full_name(DESC_A));
+        const auto g = you.species.genus();
+        if (g != SP_MONSTER && species::to_mons_species(g) != you.species
+            // uniques generally identify the genus in the description
+            && !mons_is_unique(you.species))
+        {
+            // TODO: lowercase?
+            title += make_stringf(", of %s stock",
+                species::name(you.species.genus()).c_str());
+        }
 
         if (!title.empty())
         {
