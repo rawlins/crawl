@@ -8210,7 +8210,8 @@ string player::species_appellation(bool include_job, bool article) const
             || !you.species.is_genus_monster()
                && !mons_is_unique(you.species.mon_species))
         {
-            r +=  species::name(you.species, species::SPNAME_ADJ) + " ";
+            r += lowercase_first(species::name(you.species, species::SPNAME_ADJ))
+                    + " ";
         }
         r += get_job_name(you.char_class);
     }

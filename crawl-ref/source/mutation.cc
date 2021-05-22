@@ -1066,7 +1066,7 @@ string describe_mutations(bool drop_title)
 
         string title = getMiscString(mi.common_name(DESC_DBNAME) + " title");
         if (title.empty())
-            title = uppercase_first(mi.full_name(DESC_A)) + ".";
+            title = lowercase_first(mi.full_name(DESC_A));
 
         if (!title.empty())
         {
