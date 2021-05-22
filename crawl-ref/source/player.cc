@@ -8207,8 +8207,7 @@ string player::species_appellation(bool include_job, bool article) const
             r += "the ";
         if (article && mons_is_unique(you.species.mon_species)
             // Always add `monstrous` when there is potential confusion
-            || !you.species.is_genus_monster()
-               && !mons_is_unique(you.species.mon_species))
+            || species::is_player_species_equiv(you.species))
         {
             r += lowercase_first(species::name(you.species, species::SPNAME_ADJ))
                     + " ";

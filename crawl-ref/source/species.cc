@@ -199,6 +199,14 @@ namespace species
         return get_species_def(species).monster_species;
     }
 
+    bool is_player_species_equiv(monster_type m)
+    {
+        for (auto& entry : species_data)
+            if (entry.second.monster_species == m)
+                return true;
+        return false;
+    }
+
     // XX non-draconians, unify with skin names?
     const char* scale_type(mc_species species)
     {

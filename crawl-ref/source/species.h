@@ -118,6 +118,7 @@ namespace species
     bool is_draconian(mc_species species);
     undead_state_type undead_type(mc_species species) PURE;
     monster_type to_mons_species(species_type species);
+    bool is_player_species_equiv(monster_type m);
 
     monster_type dragon_form(mc_species s);
     const char* scale_type(mc_species species);
