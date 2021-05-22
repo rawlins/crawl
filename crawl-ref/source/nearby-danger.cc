@@ -204,6 +204,7 @@ vector<monster* > get_nearby_monsters(bool want_move,
             if (mon->alive()
                 && (!require_visible || mon->visible_to(&you))
                 && !mon->submerged()
+                && !mon->is_player_proxy()
                 && (!dangerous_only || !mons_is_safe(mon, want_move,
                                                      consider_user_options,
                                                      check_dist)))
