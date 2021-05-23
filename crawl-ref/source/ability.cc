@@ -1214,7 +1214,10 @@ string get_ability_desc(const ability_type ability, bool need_title)
 
     string lookup;
 
-    if (testbits(get_ability_def(ability).flags, abflag::card))
+    // TODO: does this work for absolutely everything?
+    if (_is_monabil(ability))
+        lookup = getLongDescription(name + " spell");
+    else if (testbits(get_ability_def(ability).flags, abflag::card))
         lookup = _nemelex_desc(ability);
     else
         lookup = getLongDescription(name + " ability");
@@ -1239,7 +1242,9 @@ string get_ability_desc(const ability_type ability, bool need_title)
         res << name << "\n\n";
     res << lookup << "\n" << _detailed_cost_description(ability);
 
-    const string quote = getQuoteString(name + " ability");
+    const string quote = _is_monabil(ability)
+        ? getQuoteString(name + " spell")
+        : getQuoteString(name + " ability");
     if (!quote.empty())
         res << "\n\n" << quote;
 
