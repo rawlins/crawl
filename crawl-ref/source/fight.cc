@@ -275,7 +275,7 @@ bool fight_melee(actor *attacker, actor *defender, bool *did_hit, bool simu)
             coord_def pos = defender->pos();
             int effective_attack_number = 0;
             int attack_number;
-            bool contact;
+            bool contact = false;
             for (attack_number = 0; attack_number < nrounds && attacker->alive();
                 ++attack_number, ++effective_attack_number)
             {

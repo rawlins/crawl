@@ -292,7 +292,7 @@ random_var player::attack_delay(const item_def *projectile, bool rescale) const
         attk_delay = attk_delay *
             mons_energy_to_delay(*you.monster_instance, EUT_MISSILE) / 10;
     }
-    else
+    else if (species == SP_MONSTER)
     {
         // TODO: are there any cases where this should go lower than 3?
         attk_delay = attk_delay *

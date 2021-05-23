@@ -1097,7 +1097,7 @@ talent get_talent(ability_type ability, bool check_confused)
     return result;
 }
 
-vector<talent> get_monspecies_talents()
+static vector<talent> _get_monspecies_talents()
 {
     vector<talent> results;
     ASSERT(you.species == SP_MONSTER);
@@ -3674,7 +3674,7 @@ vector<talent> your_talents(bool check_confused, bool include_unusable, bool ign
 
     if (you.species == SP_MONSTER)
     {
-        auto species_talents = get_monspecies_talents();
+        auto species_talents = _get_monspecies_talents();
         talents.insert(talents.end(),
                               species_talents.begin(), species_talents.end());
     }

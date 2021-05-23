@@ -6,6 +6,7 @@
 #include "game-type.h"
 #include "item-prop-enum.h"
 #include "job-type.h"
+#include "monster-type.h"
 #include "species-type.h"
 
 using std::string;
