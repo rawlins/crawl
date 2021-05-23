@@ -3106,9 +3106,10 @@ void melee_attack::mons_apply_attack_flavour()
                     atk_name(DESC_THE).c_str(),
                     attacker->conj_verb("burn").c_str(),
                     defender_name(true).c_str());
-
-            _print_resist_messages(defender, special_damage, BEAM_FIRE);
         }
+
+        if (needs_message)
+            _print_resist_messages(defender, base_damage, BEAM_FIRE);
 
         defender->expose_to_element(BEAM_FIRE, 2);
         break;

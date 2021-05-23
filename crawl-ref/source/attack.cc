@@ -96,11 +96,14 @@ bool attack::handle_phase_damaged()
                                            0,
                                            false);
 
-        const int ratio = (attk_damage + 1) * 1000 / primary.damage;
-        dprf("Scaling attack damage from %d to %d, ratio %d", damage_done, damage_done * ratio / 1000, ratio);
-        damage_done = damage_done * ratio / 1000;
-        if (damage_done == 0)
-            return false;
+        if (primary.damage > 0)
+        {
+            const int ratio = (attk_damage + 1) * 1000 / primary.damage;
+            dprf("Scaling attack damage from %d to %d, ratio %d", damage_done, damage_done * ratio / 1000, ratio);
+            damage_done = damage_done * ratio / 1000;
+            if (damage_done == 0)
+                return false;
+        }
     }
     // We have to check in_bounds() because removed kraken tentacles are
     // temporarily returned to existence (without a position) when they
