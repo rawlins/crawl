@@ -600,6 +600,16 @@ void setup_monster_player(bool game_start)
         you.attribute[ATTR_PERM_FLIGHT] = 1;
     // TODO: unhandled flags: batty, confused, unblindable, blood scent, submerges, no_skeleton, web sense
 
+    // some spell special cases
+    if (you.species == MONS_DRACONIAN_STORMCALLER)
+    {
+        // these start off worshipping qazlal, so let them use piety-dependent
+        // upheaval. They still start with smite and summon drakes, so aren't
+        // exactly hurting...
+        erase_if(you.monster_instance->spells, [](const mon_spell_slot &t) {
+            return t.spell == SPELL_UPHEAVAL;
+        });
+    }
 }
 
 static void _setup_generic(const newgame_def& ng,

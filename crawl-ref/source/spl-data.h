@@ -471,10 +471,11 @@ static const struct spell_desc spelldata[] =
 {
     SPELL_BLINK_RANGE, "Blink Range", // XXX needs better name
     spschool::translocation,
+    spflag::target |
     spflag::escape | spflag::monster | spflag::selfench | spflag::emergency,
     2,
     0,
-    -1, -1,
+    LOS_RADIUS, LOS_RADIUS,
     2, 0,
     TILEG_BLINK,
 },
@@ -482,10 +483,11 @@ static const struct spell_desc spelldata[] =
 {
     SPELL_BLINK_AWAY, "Blink Away",
     spschool::translocation,
+    spflag::target |
     spflag::escape | spflag::monster | spflag::emergency | spflag::selfench,
     2,
     0,
-    -1, -1,
+    LOS_RADIUS, LOS_RADIUS,
     2, 0,
     TILEG_BLINK,
 },

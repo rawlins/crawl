@@ -453,10 +453,16 @@ int zap_to_hit(zap_type z_type, int power, bool is_monster)
     const zap_info* zinfo = _seek_zap(z_type);
     if (!zinfo)
         return 0;
-    const tohit_deducer* hit_calc = is_monster ? zinfo->monster_tohit
-                                               : zinfo->player_tohit;
     if (zinfo->is_enchantment)
         return 0;
+    tohit_deducer* hit_calc = is_monster ? zinfo->monster_tohit
+                                         : zinfo->player_tohit;
+
+    // TODO: this is pretty hacky, but it's better than crashing when this
+    // comes up. Example: player draconian scorcher casting call down
+    // damnation.
+    if (!hit_calc && !is_monster && you.species.is_monster())
+        hit_calc = zinfo->monster_tohit;
     ASSERT(hit_calc);
     const int hit = (*hit_calc)(power);
     if (hit != AUTOMATIC_HIT && !is_monster && crawl_state.need_save)

@@ -1251,6 +1251,8 @@ unique_ptr<targeter> find_spell_targeter(spell_type spell, int pow, int range)
 {
     switch (spell)
     {
+    case SPELL_CALL_DOWN_DAMNATION:
+        return make_unique<targeter_smite>(&you, range, 0, 1);
     case SPELL_FIREBALL:
         return make_unique<targeter_beam>(&you, range, ZAP_FIREBALL, pow,
                                           1, 1);

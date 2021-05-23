@@ -4039,12 +4039,6 @@ bool handle_mon_spell(monster* mons)
         else
             return false;
     }
-    else if (spell_cast == SPELL_BLINK_RANGE)
-        blink_range(mons);
-    else if (spell_cast == SPELL_BLINK_AWAY)
-        blink_away(mons, true);
-    else if (spell_cast == SPELL_BLINK_CLOSE)
-        blink_close(mons);
     else
     {
         const bool battlesphere = mons->props.exists("battlesphere");
@@ -5528,6 +5522,15 @@ void mons_cast(monster* mons, bolt pbolt, spell_type spell_cast,
     {
     default:
         break;
+    case SPELL_BLINK_RANGE:
+        blink_range(mons);
+        return;
+    case SPELL_BLINK_AWAY:
+        blink_away(mons, true);
+        return;
+    case SPELL_BLINK_CLOSE:
+        blink_close(mons);
+        return;
 
     case SPELL_WATERSTRIKE:
     {

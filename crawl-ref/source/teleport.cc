@@ -63,6 +63,9 @@ bool monster::blink_to(const coord_def& dest, bool quiet)
 
 bool monster::blink_to(const coord_def& dest, bool quiet, bool jump)
 {
+    if (is_player_proxy())
+        return you.blink_to(dest, quiet); // TODO: jumping
+
     if (dest == pos())
         return false;
 
