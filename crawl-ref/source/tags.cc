@@ -2503,6 +2503,10 @@ void remove_removed_library_spells(FixedBitVector<NUM_SPELLS>& lib)
 
 static void _fixup_species_mutations(mutation_type mut)
 {
+    // TODO: more permanent solution for monster species. Maybe remove all
+    // save compat code?
+    if (you.species.is_monster())
+        return;
     // this is *not safe* to use with any mutations where there could be a
     // physiology conflict, or with mutations where there could be random
     // upgrades on top of the innate levels (e.g. MUT_ROLL).
