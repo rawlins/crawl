@@ -1,4 +1,59 @@
-[![Build Status](https://github.com/crawl/crawl/workflows/Build/badge.svg)](https://github.com/crawl/crawl/actions/)
+# Monstercrawl
+
+Developer: advil / advil at dcss dot io
+
+Monstercrawl is an in-development fork of Dungeon Crawl Stone Soup that lets
+monster species all be playable. This is basically an experiment in two things:
+extreme player/monster symmetry, and (more) procedural species generation.
+The current version is extremely pre-release, so use at your own risk; there's
+lots of tuning remaining before this is even an alpha.
+
+General changes:
+
+* Any monster species that can be placed can be chosen at character selection.
+  In DCSS, unique monsters are implemented as their own species, so you can
+  play as uniques specifically.
+* The `A` screen shows key highlights of a specific monster species. Monster
+  special abilities can be accessed via `a`.
+* Monster species are implemented with partial progression: they can gain
+  experience levels and in many ways develop like a normal character, but also
+  begin the game with many traits of the monster. Here's the current state
+  of this at a high level; some aspects of this may change in the future:
+  - inherent traits like movement speed, resistances, etc. are generally
+    applied immediately.
+  - monsters begin the game with items that they would typically place with,
+    subject to randomness as well. (E.g. Sonja will place with a rapier, but
+    the brand is randomized.)
+  - monster spells and special abilities are available immediately as
+    abilities, with no cost and a 0% fail rate. (This is one of the biggest
+    things I am considering changing in the future, for better progression.)
+  - monster species also have the expected limitations, e.g. bats cannot use
+    items. There are some specific exceptions to make certain cases marginally
+    playable: all species have a min intelligence 3, even if they would
+    normally be brainless; all species can open doors, even if e.g.
+    permaconfused; all species can read scrolls and (currently) wear amulets.
+    All species can collect items. However, if a limitation is central to the
+    monster species, it is preserved, even if that makes the monster unplayable!
+  - Regular player progression mechanisms such as stats, skills, HP, MP, XL,
+    Will, piety, etc.; work as normal.
+  - Monsters that are specializations of regular species generally inherit the
+    rulesets of their species. E.g. Imperial Myrmidons are fundamentally
+    human.
+
+Major TODOs:
+ * Monster abilities are extremely untested, and many involve code not
+   designed for player use.
+ * The biggest procgen gap is aptitudes, which are currently very boring,
+   except for monsters that inherit player species aptitudes.
+ * TBD whether progression should be involved in monster abilities.
+ * Lots of specific monster cases still in progress, too many to list.
+ * ...
+
+Long-term possibilities (not for the first release):
+ * dungeon generation modifiers to make some corner cases more playable, e.g.
+   lava or water dungeon.
+
+**Original DCSS README follows**
 
 # Dungeon Crawl Stone Soup
 
