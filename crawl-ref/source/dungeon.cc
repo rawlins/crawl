@@ -5471,7 +5471,8 @@ static void _vault_grid_glyph_mons(vault_placement &place,
             if (!place.map.place.empty()
                 && !invalid_monster_type(mt)
                 && mons_is_unique(mt)
-                && you.unique_creatures[mt])
+                && you.unique_creatures[mt]
+                && you.species != mt)
             {
                 mprf(MSGCH_ERROR, "ERROR: %s already generated somewhere "
                      "else; please file a bug report.",

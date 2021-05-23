@@ -32,7 +32,8 @@ function MonPropsMarker:init(marker)
   local mon = dgn.mons_at(marker:pos())
 
   if not mon then
-    crawl.mpr("No monster for MonPropsMarker:activate()")
+    -- monstercrawl removes an error message here, to handle player TRJ more
+    -- gracefully. (Not sure this is the best solution, though...)
     dgn.remove_marker(marker)
     return
   end
