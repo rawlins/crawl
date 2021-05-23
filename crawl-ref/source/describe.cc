@@ -3899,6 +3899,10 @@ string monster_attacks_description(const monster_info& mi)
     {
         const mon_attack_info &info = attack_count.first;
         const mon_attack_def &attack = info.definition;
+        const bool has_flavour = !_flavour_base_desc(attack.flavour).empty();
+        // for monster species, only flavorful attacks are interesting.
+        if (mi.player_proxy && !has_flavour && attack_count.second <= 1)
+            continue;
 
         const string weapon_name =
               info.weapon ? info.weapon->name(DESC_PLAIN).c_str()
@@ -3916,8 +3920,10 @@ string monster_attacks_description(const monster_info& mi)
         // XXX: hack alert
         if (attack.flavour == AF_PURE_FIRE)
         {
-            attack_descs.push_back(
-                make_stringf("%s for up to %d fire damage",
+            attack_descs.push_back(mi.player_proxy
+                ? make_stringf("%s, causing fire damage",
+                             mon_attack_name(attack.type, false).c_str())
+                : make_stringf("%s for up to %d fire damage",
                              mon_attack_name(attack.type, false).c_str(),
                              flavour_damage(attack.flavour, mi.hd, false)));
             continue;
@@ -3925,7 +3931,6 @@ string monster_attacks_description(const monster_info& mi)
 
         // Damage is listed in parentheses for attacks with a flavour
         // description, but not for plain attacks.
-        bool has_flavour = !_flavour_base_desc(attack.flavour).empty();
         const string damage_desc =
             make_stringf("%sfor up to %d damage%s%s%s",
                          has_flavour ? "(" : "",
@@ -3934,13 +3939,17 @@ string monster_attacks_description(const monster_info& mi)
                          weapon_note.c_str(),
                          has_flavour ? ")" : "");
 
+        // TODO: some base_descs still have numeric format strings, how to
+        // suppress them for monster species? It may be ok because I *think*
+        // the numbers are actually correct for this case
         attack_descs.push_back(
-            make_stringf("%s%s%s%s %s%s",
+            make_stringf("%s%s%s%s%s%s%s",
                          _special_flavour_prefix(attack.flavour),
                          mon_attack_name(attack.type, false).c_str(),
                          _flavour_range_desc(attack.flavour),
                          count_desc.c_str(),
-                         damage_desc.c_str(),
+                         mi.player_proxy ? "" : " ", // ugh
+                         mi.player_proxy ? "" : damage_desc.c_str(),
                          _flavour_effect(attack.flavour, mi.hd).c_str()));
     }
 
