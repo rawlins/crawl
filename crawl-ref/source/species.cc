@@ -5,6 +5,7 @@
 #include "species.h"
 
 #include "chardump.h"
+#include "describe.h"
 #include "item-prop.h"
 #include "mon-util.h"
 #include "monster.h"
@@ -302,71 +303,34 @@ namespace species
 
     const vector<string> fake_mutations(mc_species species, bool terse)
     {
-        // TODO: do any species not of genus monster need some handling here?
-        if (species.is_genus_monster() && you.monster_instance)
+        vector<string> result;
+
+        if (species.is_monster() && you.monster_instance)
         {
-            // handle monsters with no player equivalent species
-            vector<string> result;
-            // handled via a direct check of this flag in melee_attack
-            if (mons_class_flag(species, M_ACID_SPLASH))
-                result.push_back(terse ? "acid splash" : "You splash attackers with acid.");
-            // hack: references to you
-            if (you_can_wear(EQ_BODY_ARMOUR) == MB_FALSE)
-                result.push_back(terse ? "no armour" : "You cannot wear armour.");
-
-            // TODO: is there a better way to check for no rings at all?
-            // reconcile with mutation.cc ring mut code?
-            if (you_can_wear(EQ_RING_ONE) == MB_FALSE && you_can_wear(EQ_RIGHT_RING) == MB_FALSE)
-                result.push_back(terse ? "no rings" : "You cannot wear rings.");
-            // right now, everything can wear an amulet, somehow
-            // TODO: a bit more variation in ring possibilities
-
-            // n.b. right now no weapons entails no throwing, should this always
-            // be so? Some weird monsters seem like they could probably throw,
-            // even though they don't.
-            if (you_can_wear(EQ_WEAPON) == MB_FALSE)
-                result.push_back(terse ? "no weapons or thrown items" : "You are incapable of wielding weapons or throwing items.");
-
-            // generalize mummies
-            if (you.monster_instance->res_poison() < 0)
-                result.push_back(terse ? "rPois-" : "You are vulnerable to poison.");
-            if (mons_class_itemuse(species) <= MONUSE_OPEN_DOORS
-                || mons_intel(*you.monster_instance) <= I_ANIMAL)
+            if ((mons_class_itemuse(species) <= MONUSE_OPEN_DOORS
+                    || mons_intel(*you.monster_instance) <= I_ANIMAL)
+                // specific monsters that this is not flavorful on.
+                && species != MONS_ROYAL_JELLY
+                && species != MONS_DISSOLUTION)
             {
                 // just some lore to explain why they can do things like open doors
                 // and maybe read
                 result.push_back(terse ? "uplifted" : "You are unnaturally intelligent for one of your kind.");
             }
 
-            // a bunch of energy-related things are implemented as fakemuts, plus
-            // custom logic in player.cc. The only exception is movement speed,
-            // which is mapped on to the fast/slow muts.
-            const int move_delay = mons_energy_to_delay(*you.monster_instance, EUT_MOVE);
-            const int swim_delay = mons_energy_to_delay(*you.monster_instance, EUT_SWIM);
-            if (swim_delay < move_delay)
-                result.push_back(terse ? "fast swimming" : "You swim quickly.");
-            else if (swim_delay > move_delay)
-                result.push_back(terse ? "slow swimming" : "You swim slowly.");
+            if (you.heads() != 1)
+                result.push_back(terse ? make_stringf("%d heads", you.heads()) : make_stringf("You have %d heads.", you.heads()));
 
-
-            if (!you.has_mutation(MUT_NO_GRASPING))
+            if (!terse)
             {
-                // only DE master archer has a custom value for this, but some monsters
-                // may gain this by having a higher base speed.
-                const int missile_delay = mons_energy_to_delay(*you.monster_instance, EUT_MISSILE);
-                if (missile_delay > 10)
-                    result.push_back(terse ? "slow shooting" : "You fire missiles slowly.");
-                else if (missile_delay < 10)
-                    result.push_back(terse ? "quick shooting" : "You fire missiles quickly.");
+                // sort of hacky...
+                // TODO: this is pretty clumsy for multi-attack monsters
+                const auto attacks = monster_attacks_description(monster_info(you.monster_instance.get()));
+                for (auto &a : split_string("\n", attacks))
+                    result.push_back(a);
             }
-
-            // spell energy: only orb spider has a custom value for this
-            // TODO: maybe this should just apply to special species abilities?
-            const int spell_delay = mons_energy_to_delay(*you.monster_instance, EUT_SPELL);
-            if (spell_delay > move_delay)
-                result.push_back(terse ? "slow casting" : "You cast spells slowly.");
-            else if (spell_delay < move_delay)
-                result.push_back(terse ? "quick casting" : "You cast spells quickly.");
+            else if (mons_class_flag(species, M_ACID_SPLASH))
+                result.push_back("acid splash");  // TODO: a ton of other attack flavors?
 
             // Only juggernaut has custom values for this, but many monsters will
             // have an attack speed modifier based on their base speed.
@@ -380,8 +344,45 @@ namespace species
             else if (attack_delay < 10)
                 result.push_back(terse ? "quick attacks" : "You attack quickly.");
 
-            if (you.heads() != 1)
-                result.push_back(terse ? make_stringf("%d heads", you.heads()) : make_stringf("You have %d heads.", you.heads()));
+            // spell energy: only orb spider has a custom value for this
+            // TODO: maybe this should just apply to special species abilities?
+            const int move_delay = mons_energy_to_delay(*you.monster_instance, EUT_MOVE);
+            const int spell_delay = mons_energy_to_delay(*you.monster_instance, EUT_SPELL);
+            if (spell_delay > move_delay)
+                result.push_back(terse ? "slow casting" : "You cast spells slowly.");
+            else if (spell_delay < move_delay)
+                result.push_back(terse ? "quick casting" : "You cast spells quickly.");
+
+            if (!you.has_mutation(MUT_NO_GRASPING))
+            {
+                // only DE master archer has a custom value for this, but some monsters
+                // may gain this by having a higher base speed.
+                const int missile_delay = mons_energy_to_delay(*you.monster_instance, EUT_MISSILE);
+                if (missile_delay > 10)
+                    result.push_back(terse ? "slow shooting" : "You fire missiles slowly.");
+                else if (missile_delay < 10)
+                    result.push_back(terse ? "quick shooting" : "You fire missiles quickly.");
+            }
+
+            // TODO: is there a better way to check for no rings at all?
+            // reconcile with mutation.cc ring mut code?
+            if (you_can_wear(EQ_RING_ONE) == MB_FALSE && you_can_wear(EQ_RIGHT_RING) == MB_FALSE)
+                result.push_back(terse ? "no rings" : "You cannot wear rings.");
+            // right now, everything can wear an amulet, somehow
+            // TODO: a bit more variation in ring possibilities
+
+            // generalize mummies
+            if (you.monster_instance->res_poison() < 0)
+                result.push_back(terse ? "rPois-" : "You are vulnerable to poison.");
+
+            // a bunch of energy-related things are implemented as fakemuts, plus
+            // custom logic in player.cc. The only exception is movement speed,
+            // which is mapped on to the fast/slow muts.
+            const int swim_delay = mons_energy_to_delay(*you.monster_instance, EUT_SWIM);
+            if (swim_delay < move_delay)
+                result.push_back(terse ? "fast swimming" : "You swim quickly.");
+            else if (swim_delay > move_delay)
+                result.push_back(terse ? "slow swimming" : "You swim slowly.");
 
             if (mons_class_flag(you.species, M_CONFUSED))
                 result.push_back(terse ? "confused" : "You are permanently confused.");
@@ -405,8 +406,16 @@ namespace species
             return result;
         }
 
-        return terse ? get_species_def(species.genus()).terse_fake_mutations
+        if (!species.is_genus_monster())
+        {
+            // XX do these ever conflict with monster muts?
+            const auto &genus_muts = terse
+                     ? get_species_def(species.genus()).terse_fake_mutations
                      : get_species_def(species.genus()).verbose_fake_mutations;
+            result.insert(result.end(), genus_muts.begin(), genus_muts.end());
+        }
+
+        return result;
     }
 
     bool has_hair(mc_species species)
@@ -920,6 +929,9 @@ void give_basic_mutations(mc_species species)
         if (mons_class_itemuse(species) < MONUSE_STARTING_EQUIPMENT)
         {
             // use the felid muts for this
+            // TODO: right now no weapons entails no throwing, should this always
+            // be so? Some weird monsters seem like they could probably throw,
+            // even though they don't.
             set_imut(MUT_NO_ARMOUR, 1);
             set_imut(MUT_NO_GRASPING, 1);
         }

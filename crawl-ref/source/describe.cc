@@ -3865,7 +3865,7 @@ static const item_def* _weapon_for_attack(const monster_info& mi, int atk)
     return nullptr;
 }
 
-static string _monster_attacks_description(const monster_info& mi)
+string monster_attacks_description(const monster_info& mi)
 {
     ostringstream result;
     map<mon_attack_info, int> attack_counts;
@@ -3950,15 +3950,23 @@ static string _monster_attacks_description(const monster_info& mi)
         result << " can " << comma_separated_line(attack_descs.begin(),
                                                   attack_descs.end(),
                                                   "; and ", "; ");
-        _describe_mons_to_hit(mi, result);
+        if (!mi.player_proxy)
+            _describe_mons_to_hit(mi, result);
         result << ".\n";
     }
 
     if (mi.type == MONS_ROYAL_JELLY)
     {
-        result << "It will release varied jellies when damaged or killed, with"
+        result << uppercase_first(mi.pronoun(PRONOUN_SUBJECTIVE));
+        result << " will release varied jellies when damaged or killed, with"
             " the number of jellies proportional to the amount of damage.\n";
-        result << "It will release all of its jellies when polymorphed.\n";
+        if (!mi.player_proxy)
+        {
+            result << uppercase_first(mi.pronoun(PRONOUN_SUBJECTIVE));
+            result << " will release all of ";
+            result << mi.pronoun(PRONOUN_POSSESSIVE);
+            result << " jellies when polymorphed.\n";
+        }
     }
 
     return result.str();
@@ -4631,7 +4639,7 @@ static string _monster_stat_description(const monster_info& mi)
         result << "\n";
     }
 
-    result << _monster_attacks_description(mi);
+    result << monster_attacks_description(mi);
     result << _monster_missiles_description(mi);
     result << _monster_habitat_description(mi);
     result << _monster_spells_description(mi);

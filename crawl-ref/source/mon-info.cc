@@ -445,6 +445,7 @@ monster_info::monster_info(const monster* m, int milev)
     pos = m->pos();
 
     attitude = mons_attitude(*m);
+    player_proxy = m->is_player_proxy();
 
     type = m->type;
     threat = milev <= MILEV_NAME ? MTHRT_TRIVIAL : mons_threat_level(*m);
@@ -999,7 +1000,7 @@ string monster_info::_apply_adjusted_description(description_level_type desc,
     if (is(MB_NAME_THE) && desc == DESC_A)
         desc = DESC_THE;
 
-    if (attitude == ATT_FRIENDLY && desc == DESC_THE)
+    if (attitude == ATT_FRIENDLY && desc == DESC_THE && !player_proxy)
         desc = DESC_YOUR;
 
     return apply_description(desc, s);
@@ -1851,6 +1852,11 @@ monster_type monster_info::draco_or_demonspawn_subspecies() const
 
 const char *monster_info::pronoun(pronoun_type variant) const
 {
+    // n.b. you.pronoun returns a string, so it isn't usable here
+    // TODO: could just set the gender prop?
+    if (player_proxy)
+        return decline_pronoun(GENDER_YOU, variant);
+
     if (props.exists(MON_GENDER_KEY))
     {
         return decline_pronoun((gender_type)props[MON_GENDER_KEY].get_int(),

@@ -61,6 +61,7 @@ void get_item_desc(const item_def &item, describe_info &inf);
 void inscribe_item(item_def &item);
 void target_item(item_def &item);
 
+string monster_attacks_description(const monster_info& mi);
 int describe_monsters(const monster_info &mi, const string& footer = "");
 
 void get_monster_db_desc(const monster_info &mi, describe_info &inf,
