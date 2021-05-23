@@ -533,27 +533,6 @@ static void _add_menu_sub_item(shared_ptr<OuterMenu>& menu, int x, int y, const 
     menu->add_button(move(btn), x, y);
 }
 
-#ifndef DGAMELAUNCH
-/**
- * Attempt to generate a random name for a character that doesn't collide with
- * an existing save name.
- *
- * @return  A random name, or the empty string if no good name could be
- *          generated after several tries.
- */
-string newgame_random_name()
-{
-    for (int i = 0; i < 100; ++i)
-    {
-        const string name = make_name();
-        const string filename = get_save_filename(name);
-        if (!save_exists(filename))
-            return name;
-    }
-
-    return "";
-}
-
 static monster_type _process_monster_spec(const string &specs)
 {
     // copied from wiz-mon.cc
@@ -707,6 +686,28 @@ monster_type choose_monster_species()
     if (cancel || crawl_state.seen_hups)
         return MONS_NO_MONSTER;
     return result;
+}
+
+
+#ifndef DGAMELAUNCH
+/**
+ * Attempt to generate a random name for a character that doesn't collide with
+ * an existing save name.
+ *
+ * @return  A random name, or the empty string if no good name could be
+ *          generated after several tries.
+ */
+string newgame_random_name()
+{
+    for (int i = 0; i < 100; ++i)
+    {
+        const string name = make_name();
+        const string filename = get_save_filename(name);
+        if (!save_exists(filename))
+            return name;
+    }
+
+    return "";
 }
 
 static void _choose_name(newgame_def& ng, newgame_def& choice)
