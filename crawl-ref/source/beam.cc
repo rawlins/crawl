@@ -3817,6 +3817,10 @@ void bolt::affect_player()
     if (misses_player())
         return;
 
+    // TODO: generalize?
+    if (real_flavour == BEAM_NEG && you.species == MONS_BENNU && you.hp <= 0)
+        return;
+
     const bool engulfs = is_explosion || is_big_cloud();
 
     if (is_enchantment())
@@ -3828,6 +3832,8 @@ void bolt::affect_player()
             mprf("The %s %s %s!", name.c_str(), hit_verb.c_str(),
                 you.hp > 0 ? "you" : "your lifeless body");
         }
+        if (you.hp <= 0)
+            return; // flavor only
 
         affect_player_enchantment();
         return;
@@ -3881,6 +3887,9 @@ void bolt::affect_player()
              final_dam ? "" : " but does no damage",
              attack_strength_punctuation(final_dam).c_str());
     }
+
+    if (you.hp <= 0)
+        return;
 
     // Now print the messages associated with checking resistances, so that
     // these come after the beam actually hitting.

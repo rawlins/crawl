@@ -592,6 +592,9 @@ void setup_monster_player(bool game_start)
         }
     }
 
+    if (you.species == MONS_BENNU)
+        you.lives = 1;
+
     // start flying creatures in the air
     if (you.racial_permanent_flight())
         you.attribute[ATTR_PERM_FLIGHT] = 1;

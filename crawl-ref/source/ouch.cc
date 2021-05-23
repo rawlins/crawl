@@ -42,6 +42,7 @@
 #include "message.h"
 #include "mgen-data.h"
 #include "mon-death.h"
+#include "mon-explode.h"
 #include "mon-place.h"
 #include "mon-util.h"
 #include "mutation.h"
@@ -1127,6 +1128,14 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
         mark_milestone("death", lowercase_first(se.long_kill_message()).c_str());
 
         you.deaths++;
+        bool bennu_msg = false;
+        if (you.species == MONS_BENNU)
+        {
+            bennu_msg = true;
+            explode_monster(you.monster_instance.get(), KILL_YOU, // ?
+                false, false);
+        }
+
         you.lives--;
         you.pending_revival = true;
 
@@ -1139,10 +1148,24 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
 
         canned_msg(MSG_YOU_DIE);
         xom_death_message((kill_method_type) se.get_death_type());
+        if (bennu_msg)
+            mpr("You have become mortal.");
         more();
 
         _place_player_corpse(death_type == KILLED_BY_DISINT);
         return;
+    }
+
+    if (mon_explodes_on_death(you.species) && !non_death)
+    {
+        // cosmetic for players, but a lurking horror (etc) can at least take
+        // something down with it
+        explode_monster(you.monster_instance.get(), KILL_YOU, // ?
+            false, false);
+        // lurking horror triggers immediately
+        if (you.species != MONS_LURKING_HORROR)
+            fire_final_effects();
+        more();
     }
 
     // Prevent bogus notes.

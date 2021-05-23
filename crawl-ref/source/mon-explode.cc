@@ -32,19 +32,21 @@
 
 static void _setup_base_explosion(bolt & beam, const monster& origin)
 {
+    const bool proxy = origin.is_player_proxy();
     beam.is_tracer    = false;
     beam.is_explosion = true;
     beam.is_death_effect = true;
     beam.source_id    = origin.mid;
     beam.glyph        = dchar_glyph(DCHAR_FIRED_BURST);
-    beam.source       = origin.pos();
-    beam.source_name  = origin.base_name(DESC_BASENAME, true);
-    beam.target       = origin.pos();
+    beam.source       = proxy ? you.pos() : origin.pos();
+    beam.source_name  = proxy ? "you" : origin.base_name(DESC_BASENAME, true);
+    beam.target       = proxy ? you.pos() : origin.pos();
     beam.explode_noise_msg = "You hear an explosion!";
 
     if (!crawl_state.game_is_arena() && origin.attitude == ATT_FRIENDLY
         && !origin.is_summoned())
     {
+        // covers player monsters
         beam.thrower = KILL_YOU;
     }
     else
@@ -182,7 +184,8 @@ bool monster_explodes(const monster &mons)
 bool explode_monster(monster* mons, killer_type killer,
                              bool pet_kill, bool wizard)
 {
-    if (mons->hit_points > 0 || mons->hit_points <= -15 || wizard
+    const bool player_proxy = mons->is_player_proxy();
+    if (mons->hit_points > 0 && !player_proxy || mons->hit_points <= -15 || wizard
         || killer == KILL_RESET || killer == KILL_DISMISSED
         || killer == KILL_BANISHED)
     {
@@ -191,9 +194,12 @@ bool explode_monster(monster* mons, killer_type killer,
     }
 
     bolt beam;
+    const coord_def pos = player_proxy ? you.pos() : mons->pos();
     const monster_type type = mons->type;
     string sanct_msg = "";
     string boom_msg = make_stringf("%s explodes!", mons->full_name(DESC_THE).c_str());
+    if (player_proxy)
+        boom_msg = "You explode!";
     actor* agent = nullptr;
     bool inner_flame = false;
 
@@ -210,7 +216,11 @@ bool explode_monster(monster* mons, killer_type killer,
                     apostrophise(mons->name(DESC_THE)) + " " +
                     effect + ".";
         if (type == MONS_BENNU)
+        {
             boom_msg = make_stringf("%s blazes out!", mons->full_name(DESC_THE).c_str());
+            if (player_proxy)
+                boom_msg = "You blaze out!";
+        }
     }
     else
     {
@@ -255,35 +265,37 @@ bool explode_monster(monster* mons, killer_type killer,
         }
     }
 
-    if (is_sanctuary(mons->pos()))
+    if (is_sanctuary(pos))
     {
-        if (you.can_see(*mons))
+        if (you.can_see(*mons) || player_proxy)
             mprf(MSGCH_GOD, "%s", sanct_msg.c_str());
         return false;
     }
 
     if (type == MONS_LURKING_HORROR)
-        torment(mons, TORMENT_LURKING_HORROR, mons->pos());
+        torment(mons, TORMENT_LURKING_HORROR, pos);
 
     // Detach monster from the grid first, so it doesn't get hit by
     // its own explosion. (GDL)
     // Unless it's a phoenix, where this isn't much of a concern.
-    env.mgrid(mons->pos()) = NON_MONSTER;
+    if (!player_proxy)
+        env.mgrid(mons->pos()) = NON_MONSTER;
 
     // The explosion might cause a monster to be placed where the bomb
     // used to be, so make sure that env.mgrid() doesn't get cleared a second
     // time (causing the new monster to become floating) when
     // mons->reset() is called.
-    if (type == MONS_BALLISTOMYCETE_SPORE)
+    if (type == MONS_BALLISTOMYCETE_SPORE && !player_proxy)
         mons->set_position(coord_def(0,0));
 
     // Exploding kills the monster a bit earlier than normal.
-    mons->hit_points = -16;
+    if (!player_proxy)
+        mons->hit_points = -16;
 
     // FIXME: show_more == you.see_cell(mons->pos())
     if (type == MONS_LURKING_HORROR)
     {
-        targeter_radius hitfunc(mons, LOS_SOLID);
+        targeter_radius hitfunc(player_proxy ? (actor *) &you : (actor *) mons, LOS_SOLID);
         flash_view_delay(UA_MONSTER, DARKGRAY, 300, &hitfunc);
     }
     else

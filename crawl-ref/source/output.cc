@@ -2356,7 +2356,8 @@ static vector<formatted_string> _get_overview_stats()
         entry.clear();
     }
 
-    if (you.has_mutation(MUT_MULTILIVED))
+    if (you.has_mutation(MUT_MULTILIVED)
+        || you.species == MONS_BENNU)
     {
         entry.textcolour(HUD_CAPTION_COLOUR);
         entry.cprintf("Lives:  ");
