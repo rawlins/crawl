@@ -449,11 +449,6 @@ namespace species
         return species.genus() == SP_GARGOYLE || species.genus() == SP_DJINNI;
     }
 
-    bool is_unbreathing(mc_species species)
-    {
-        return mutation_level(species.genus(), MUT_UNBREATHING);
-    }
-
     bool can_swim(mc_species species)
     {
         if (species.is_genus_monster() && you.monster_instance)
@@ -949,8 +944,6 @@ void give_basic_mutations(mc_species species)
             set_imut(MUT_NO_REGENERATION, 1);
         if (mons_class_flag(you.species, M_SPINY))
             set_imut(MUT_SPINY, 1);
-        if (mons_class_flag(you.species, M_UNBREATHING))
-            set_imut(MUT_UNBREATHING, 1);
 
         int resist = you.monster_instance->res_negative_energy(true);
         // vulnerabilities?

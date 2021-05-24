@@ -133,7 +133,6 @@ namespace species
     bool wears_barding(mc_species species);
     bool has_claws(mc_species species);
     bool is_nonliving(mc_species species);
-    bool is_unbreathing(mc_species species);
     bool can_swim(mc_species species);
     bool likes_water(mc_species species);
     bool likes_lava(mc_species species);
