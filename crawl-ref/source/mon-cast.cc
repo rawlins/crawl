@@ -279,8 +279,16 @@ static const map<spell_type, mons_spell_logic> spell_to_logic = {
 
             int damage = 0;
             fire_los_attack_spell(slot.spell, splpow, &caster, false, &damage);
-            if (damage > 0 && caster.heal(damage))
-                simple_monster_message(caster, " is healed.");
+            if (damage > 0)
+            {
+                if (caster.is_player_proxy())
+                    you.heal(damage); // HP bar is enough?
+                else
+                {
+                    caster.heal(damage);
+                    simple_monster_message(caster, " is healed.");
+                }
+            }
         },
         _zap_setup(SPELL_DRAIN_LIFE),
         MSPELL_NO_AUTO_NOISE,

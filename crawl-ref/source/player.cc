@@ -7523,7 +7523,7 @@ void player::sentinel_mark(bool trap)
  */
 bool player::is_nervous()
 {
-    if (form != transformation::fungus)
+    if (form != transformation::fungus && species != MONS_WANDERING_MUSHROOM)
         return false;
     for (monster_near_iterator mi(&you); mi; ++mi)
     {
@@ -7541,7 +7541,7 @@ bool player::is_nervous()
  */
 bool player::made_nervous_by(const monster *mons)
 {
-    if (form != transformation::fungus)
+    if (form != transformation::fungus && species != MONS_WANDERING_MUSHROOM)
         return false;
     if (!mons)
         return false;

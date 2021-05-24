@@ -664,7 +664,7 @@ static spret _cast_los_attack_spell(spell_type spell, int pow,
                                          const actor* agent, bool actual,
                                          bool fail, int* damage_done)
 {
-    const bool player_caster = agent && agent->is_player();
+    const bool player_caster = agent && (agent->is_player() || agent->is_player_proxy());
     const monster* mons = agent ? agent->as_monster() : nullptr;
 
     const zap_type zap = spell_to_zap(spell);
@@ -815,7 +815,7 @@ static spret _cast_los_attack_spell(spell_type spell, int pow,
     {
         // Watch out for invalidation. Example: Ozocubu's refrigeration on
         // a bunch of ballistomycete spores that blow each other up.
-        if (!m->alive())
+        if (!m->alive() || m->is_player_proxy())
             continue;
 
         int this_damage = _los_spell_damage_monster(agent, *m, beam, actual);
