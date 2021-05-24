@@ -553,8 +553,11 @@ void setup_monster_player(bool game_start)
     vector<item_def> mon_items;
     for (mon_inv_iterator ii(*tmp_mons); ii; ++ii)
     {
+        const auto slot = ii.slot();
         mon_items.emplace_back(*ii);
+        // don't fully unlink the item
         destroy_item(*ii);
+        tmp_mons->inv[slot] = NON_ITEM;
     }
 
     // then we set up monster instance. This needs to be in place before

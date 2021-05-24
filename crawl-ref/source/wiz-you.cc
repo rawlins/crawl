@@ -12,6 +12,7 @@
 
 #include "abyss.h"
 #include "dbg-util.h"
+#include "env.h"
 #include "god-abil.h"
 #include "god-wrath.h"
 #include "item-use.h"
@@ -20,6 +21,7 @@
 #include "macro.h"
 #include "message.h"
 #include "misc.h" // frombool
+#include "mon-place.h"
 #include "mutation.h"
 #include "newgame.h"
 #include "output.h"
@@ -131,6 +133,38 @@ void wizard_change_species()
     }
 
     change_species_to(outcome);
+}
+
+void wizard_place_monster_instance()
+{
+    if (!you.monster_instance)
+    {
+        mpr("You're not a monster!");
+        return;
+    }
+    monster *mon = get_free_monster();
+    ASSERT(mon);
+
+    coord_def place = find_newmons_square(you.monster_instance->type, you.pos());
+    if (!in_bounds(place))
+    {
+        // Try again with habitat HT_LAND.
+        // (Will be changed to the necessary terrain type in dgn_place_monster.)
+        place = find_newmons_square(MONS_NO_MONSTER, you.pos());
+    }
+
+    if (!in_bounds(place))
+    {
+        mprf(MSGCH_DIAGNOSTICS, "Found no space to place monster.");
+        return;
+    }
+    *mon = *you.monster_instance;
+    mon->hit_points = you.hp;
+    mon->set_hit_dice(you.experience_level);
+    mon->set_new_monster_id();
+    mon->set_position(place);
+    env.mgrid(place) = mon->mindex(); // is this necessary?
+    mprf("Placed duplicate of monster_instance at %d,%d", place.x, place.y);
 }
 
 // Casts a specific spell by number or name.

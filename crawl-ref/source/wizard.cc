@@ -137,7 +137,8 @@ static void _do_wizard_command(int wiz_command)
     case CONTROL('Q'): wizard_toggle_dprf(); break;
 
     case 'r': wizard_change_species(); break;
-    case 'R': wizard_spawn_control(); break;
+    // removed spawn rate from normal dcss
+    case 'R': wizard_place_monster_instance(); break;
     case CONTROL('R'): wizard_recreate_level(); break;
 
     case 's':
@@ -454,7 +455,6 @@ int list_wizard_commands(bool do_redraw_screen)
                        "<w>u</w>/<w>d</w>    shift up/down one level\n"
                        "<w>Ctrl-B</w> banish yourself to the Abyss\n"
                        "<w>Ctrl-S</w> change Abyss speed\n"
-                       "<w>R</w>      change monster spawn rate\n"
                        "<w>Ctrl-W</w> change Shoals' tide speed\n",
                        true);
 
@@ -479,6 +479,7 @@ int list_wizard_commands(bool do_redraw_screen)
                        "<w>D</w>      detect all monsters\n"
                        "<w>G</w>      dismiss all monsters\n"
                        "<w>\"</w>      list monsters\n"
+                       "<w>R</w>      place a duplicate of you.monster_instance\n"
                        "\n"
                        "<yellow>Item related commands</yellow>\n"
                        "<w>a</w>      acquirement\n"
