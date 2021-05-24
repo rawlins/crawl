@@ -2188,7 +2188,7 @@ static void _init_monster_skills()
 
         if (you.monster_instance->is_actual_spellcaster())
             _spec_skills[SP_MONSTER][SK_SPELLCASTING] += 1;
-        
+
         _spec_skills[SP_MONSTER][SK_ICE_MAGIC]
                             -= you.get_mutation_level(MUT_COLD_BLOODED);
 
