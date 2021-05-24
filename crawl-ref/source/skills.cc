@@ -2080,13 +2080,8 @@ static void _init_monster_skills()
     dprf("setting skills from %s", species::name(species).c_str());
     // these things are all just in a big list
     for (const species_skill_aptitude &ssa : species_skill_aptitudes)
-    {
         if (ssa.species == species)
-        {
-            dprf("set %d to %d", ssa.skill, ssa.aptitude);
             _spec_skills[SP_MONSTER][ssa.skill] = ssa.aptitude;
-        }
-    }
 
     if (species != SP_MONSTER)
     {
