@@ -7238,6 +7238,9 @@ bool player::can_feel_fear(bool include_unknown) const
 
 bool player::can_throw_large_rocks() const
 {
+    if (monster_instance)
+        return monster_instance->can_throw_large_rocks();
+    // size returns false positives for monster species
     return species::can_throw_large_rocks(species);
 }
 
