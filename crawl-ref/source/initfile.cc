@@ -1780,7 +1780,14 @@ static void write_newgame_options(const newgame_def& prefs, FILE *f)
     fprintf(f, "name = %s\n", prefs.name.c_str());
     if (prefs.species != SP_UNKNOWN)
         fprintf(f, "species = %s\n", _species_to_str(prefs.species).c_str());
-    if (prefs.job != JOB_UNKNOWN)
+    if (prefs.species == SP_MONSTER)
+    {
+        fprintf(f, "monster_species = %s\n",
+                    mons_type_name(prefs.monster_species, DESC_PLAIN).c_str());
+    }
+    // job is fixed for monster species, but renders in string form as the
+    // monster species name, so don't save anything
+    else if (prefs.job != JOB_UNKNOWN)
         fprintf(f, "background = %s\n", _job_to_str(prefs.job).c_str());
     if (prefs.weapon != WPN_UNKNOWN)
         fprintf(f, "weapon = %s\n", _weapon_to_str(prefs.weapon).c_str());
@@ -2927,6 +2934,14 @@ void game_options::read_option_line(const string &str, bool runscript)
     {
         game.allowed_combos.clear();
         NEWGAME_OPTION(game.allowed_jobs, str_to_job, job_type);
+    }
+    else if (key == "monster_species")
+    {
+        monster_type m = get_monster_by_name(field.c_str(), true);
+        if (m == MONS_NO_MONSTER)
+            report_error("Unknown monster species: %s\n", field.c_str());
+        else
+            game.monster_species = m;
     }
     else if (key == "weapon")
     {

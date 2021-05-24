@@ -535,16 +535,17 @@ static void _add_menu_sub_item(shared_ptr<OuterMenu>& menu, int x, int y, const 
 
 static monster_type _process_monster_spec(const string &specs)
 {
-    // copied from wiz-mon.cc
+    // based on wiz-mon.cc code
     mons_list mlist;
+    if (specs.size() < 3) // heuristic, can this be improved?
+        return MONS_NO_MONSTER;
     string err = mlist.add_mons(specs.c_str());
 
     if (!err.empty())
     {
-        // Try for a partial match, but not if the user accidentally entered
-        // only a few letters.
-        monster_type partial = get_monster_by_name(specs.c_str(), true);
-        if (specs.size() >= 3 && partial != MONS_PROGRAM_BUG)
+        // Try for a partial match
+        const monster_type partial = get_monster_by_name(specs.c_str(), true);
+        if (partial != MONS_PROGRAM_BUG)
         {
             mlist.clear();
             mlist.add_mons(mons_type_name(partial, DESC_PLAIN));
@@ -562,7 +563,7 @@ static monster_type _process_monster_spec(const string &specs)
 }
 
 #define MAX_MONSTER_NAME_WIDTH 20
-monster_type choose_monster_species()
+monster_type choose_monster_species(monster_type quick_choice)
 {
     // TODO: use new ui things for this
     char buf[MAX_MONSTER_NAME_WIDTH + 1]; // FIXME: make line_reader handle widths
@@ -593,13 +594,21 @@ monster_type choose_monster_species()
     vbox->add_child(prompt_ui);
     vbox->add_child(monster_txt);
 
-    auto sub_items = make_shared<OuterMenu>(false, 3, 1);
+    auto sub_items = make_shared<OuterMenu>(false,
+                                quick_choice == MONS_NO_MONSTER ? 3 : 4, 1);
     vbox->add_child(sub_items);
 
     _add_menu_sub_item(sub_items, 0, 0,
             "Esc - Quit", "", CK_ESCAPE, CK_ESCAPE);
     _add_menu_sub_item(sub_items, 1, 0,
             "* - Random monster", "", '*', '*');
+    if (quick_choice != MONS_NO_MONSTER)
+    {
+        _add_menu_sub_item(sub_items, 2, 0,
+            make_stringf("Tab - %s",
+                        mons_type_name(quick_choice, DESC_PLAIN).c_str()),
+            "", '\t', '\t');
+    }
 
     auto ok_switcher = make_shared<Switcher>();
     auto begin_txt = make_shared<Text>();
@@ -630,7 +639,8 @@ monster_type choose_monster_species()
 
         ok_switcher->add_child(btn);
         ok_switcher->add_child(box);
-        sub_items->add_button(btn, 2, 0);
+        sub_items->add_button(btn,
+            quick_choice == MONS_NO_MONSTER ? 2 : 3, 0);
     }
 
     auto popup = make_shared<ui::Popup>(move(vbox));
@@ -645,6 +655,11 @@ monster_type choose_monster_species()
                 reader.putkey(CONTROL('U'));
                 // TODO: implement
                 break;
+            case '\t':
+                done = true;
+                result = quick_choice;
+                break;
+
             case CK_ESCAPE:
                 done = cancel = true;
                 break;
@@ -1775,7 +1790,8 @@ static void _prompt_choice(int choice_type, newgame_def& ng, newgame_def& ng_cho
 {
     if (ng.species == SP_MONSTER || ng.job == JOB_MONSTER)
     {
-        ng_choice.monster_species =  choose_monster_species();
+        ng_choice.monster_species = choose_monster_species(
+                                                    defaults.monster_species);
         if (invalid_monster_type(ng_choice.monster_species))
             game_ended(game_exit::abort);
         ng_choice.species = SP_MONSTER;
