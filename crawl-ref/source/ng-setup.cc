@@ -610,6 +610,11 @@ void setup_monster_player(bool game_start)
             return t.spell == SPELL_UPHEAVAL;
         });
     }
+    // aura of brilliance is at a unfortunate combo of buggy for players to
+    // cast + extremely useless, so disable it for now
+    erase_if(you.monster_instance->spells, [](const mon_spell_slot &t) {
+        return t.spell == SPELL_AURA_OF_BRILLIANCE;
+    });
 }
 
 static void _setup_generic(const newgame_def& ng,
