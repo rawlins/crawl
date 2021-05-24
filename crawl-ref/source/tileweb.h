@@ -45,6 +45,7 @@ struct player_info
     string job_title;
     bool wizard;
     string species;
+    string species_appellation;
     string god;
     bool under_penance;
     uint8_t piety_rank;

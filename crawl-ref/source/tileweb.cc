@@ -941,6 +941,9 @@ void TilesFramework::_send_player(bool force_full)
     _update_int(force_full, c.wizard, you.wizard, "wizard");
     _update_string(force_full, c.species, species::name(you.species),
                    "species");
+    _update_string(force_full, c.species_appellation,
+                    uppercase_first(you.species_appellation(false)),
+                   "species_appellation");
     string god = "";
     if (you_worship(GOD_JIYVA))
         god = god_name_jiyva(true);

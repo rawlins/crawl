@@ -329,7 +329,7 @@ function ($, comm, enums, map_knowledge, messages, options, util) {
         if ($("#stats").attr("data-species") != player.species)
             $("#stats").attr("data-species", player.species);
 
-        var species_god = player.species;
+        var species_god = player.species_appellation;
         if (player.god != "")
             species_god += " of " + player.god;
         if (player.god == "Xom")
