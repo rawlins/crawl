@@ -1107,6 +1107,8 @@ void change_species_to(mc_species sp)
     you.chr_species_name = species::name(sp);
     if (you.species == SP_MONSTER)
         setup_monster_player(false); // reinit you.monster_instance
+    else
+        you.monster_instance.reset();
 
     // reset monster-specific abilities; these will just produce weird
     // results across monsters -- there's no way to retrieve the correct
