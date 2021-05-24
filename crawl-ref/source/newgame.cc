@@ -533,6 +533,18 @@ static void _add_menu_sub_item(shared_ptr<OuterMenu>& menu, int x, int y, const 
     menu->add_button(move(btn), x, y);
 }
 
+static bool _disallow_mons_species(monster_type mt)
+{
+    return mt == MONS_PROGRAM_BUG
+        || mt == MONS_NO_MONSTER
+        // random monster specs would be nice but they're all super broken
+        // here, because they need a place to be interpretable
+        || mt == RANDOM_MONSTER || mt == RANDOM_MOBILE_MONSTER
+        || mt == RANDOM_COMPATIBLE_MONSTER
+        || mt == RANDOM_BANDLESS_MONSTER
+        || mt == WANDERING_MONSTER;
+}
+
 static monster_type _process_monster_spec(const string &specs)
 {
     // based on wiz-mon.cc code
@@ -544,25 +556,34 @@ static monster_type _process_monster_spec(const string &specs)
     if (!err.empty())
     {
         // Try for a partial match
-        const monster_type partial = get_monster_by_name(specs.c_str(), true);
-        if (partial != MONS_PROGRAM_BUG)
-        {
-            mlist.clear();
-            mlist.add_mons(mons_type_name(partial, DESC_PLAIN));
-        }
-        else
-            return MONS_NO_MONSTER;
+        mlist.clear();
+        mlist.add_mons(mons_type_name(
+                        get_monster_by_name(specs.c_str(), true), DESC_PLAIN));
     }
 
     mons_spec mspec = mlist.get_monster(0);
-    if (mspec.type == MONS_NO_MONSTER)
-        return mspec.type;
+    if (_disallow_mons_species(mspec.type))
+        return MONS_NO_MONSTER;
 
     return fixup_zombie_type(static_cast<monster_type>(mspec.type),
                           mspec.monbase);
 }
 
-#define MAX_MONSTER_NAME_WIDTH 20
+static monster_type _random_monster_spec()
+{
+    monster_type r = MONS_NO_MONSTER;
+    for (int i = 0; i < 500; i++)
+    {
+        r = _process_monster_spec(mons_type_name(
+                static_cast<monster_type>(random2(NUM_MONSTERS)), DESC_PLAIN));
+        if (!_disallow_mons_species(r))
+            return r;
+    }
+    // wtf
+    return MONS_DWARF;
+}
+
+#define MAX_MONSTER_NAME_WIDTH 40
 monster_type choose_monster_species(monster_type quick_choice)
 {
     // TODO: use new ui things for this
@@ -601,7 +622,7 @@ monster_type choose_monster_species(monster_type quick_choice)
     _add_menu_sub_item(sub_items, 0, 0,
             "Esc - Quit", "", CK_ESCAPE, CK_ESCAPE);
     _add_menu_sub_item(sub_items, 1, 0,
-            "* - Random monster", "", '*', '*');
+            "* - Random", "", '*', '*');
     if (quick_choice != MONS_NO_MONSTER)
     {
         _add_menu_sub_item(sub_items, 2, 0,
@@ -653,7 +674,12 @@ monster_type choose_monster_species(monster_type quick_choice)
             case '*':
                 reader.putkey(CK_END);
                 reader.putkey(CONTROL('U'));
-                // TODO: implement
+                result = _random_monster_spec();
+                reader.set_text(mons_type_name(result, DESC_PLAIN));
+                // TODO: deduplicate code
+                monster_txt->set_text(string("Selected: ") +
+                            uppercase_first(mons_type_name(result, DESC_PLAIN)));
+                ok_switcher->current() = 0;
                 break;
             case '\t':
                 done = true;
