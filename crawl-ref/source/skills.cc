@@ -2058,21 +2058,38 @@ static bool _skill_needs_usable_hands(skill_type sk)
 
 static void _init_monster_skills()
 {
-    ASSERT(you.species == SP_MONSTER);
+    ASSERT(you.species == SP_MONSTER && you.monster_instance);
     // reset to 0. TODO: reset to -1 instead?
     for (int sk = 0; sk < NUM_SKILLS; ++sk)
         _spec_skills[SP_MONSTER][sk] = 0;
 
     // TODO: mummy variants? naga warrior / nagaraja? ogre mage? salamanders?
     auto species = you.species.genus();
+    if (species == SP_BASE_DRACONIAN && you.monster_instance)
+    {
+        // for draconians, sub in their base type to get the right color
+        // aptitudes (draconians use MONS_DRACONIAN as their genus)
+        auto base = mons_species_to_player_species(
+            draco_or_demonspawn_subspecies(*you.monster_instance));
+        if (base != SP_MONSTER)
+            species = base;
+    }
+
+    // if species is SP_MONSTER, then this resets aptitudes to 0. Comes up
+    // for wizmode species changing.
+    dprf("setting skills from %s", species::name(species).c_str());
+    // these things are all just in a big list
+    for (const species_skill_aptitude &ssa : species_skill_aptitudes)
+    {
+        if (ssa.species == species)
+        {
+            dprf("set %d to %d", ssa.skill, ssa.aptitude);
+            _spec_skills[SP_MONSTER][ssa.skill] = ssa.aptitude;
+        }
+    }
+
     if (species != SP_MONSTER)
     {
-        // these things are all just in a big list
-        for (const species_skill_aptitude &ssa : species_skill_aptitudes)
-        {
-            if (ssa.species == species)
-                _spec_skills[SP_MONSTER][ssa.skill] = ssa.aptitude;
-        }
         // deep trolls get a flat boost relative to regular trolls
         // uniques get a flat boost over their base species
         if (mons_species(you.species) == MONS_DEEP_TROLL
@@ -2082,6 +2099,7 @@ static void _init_monster_skills()
                 if (_spec_skills[SP_MONSTER][sk] != UNUSABLE_SKILL)
                     _spec_skills[SP_MONSTER][sk] += 1;
         }
+        return;
     }
     if (you.monster_instance->is_priest())
         _spec_skills[SP_MONSTER][SK_INVOCATIONS] += 1;
@@ -2126,28 +2144,53 @@ static void _init_monster_skills()
     // TODO: maybe take monster spells into account?
     // These are applied to player species as well, so that e.g. hell knights
     // get a fire magic boost. (TODO: maybe halve the effect for these cases?)
-    _spec_skills[SP_MONSTER][SK_NECROMANCY]
-                            = you.monster_instance->res_negative_energy(true);
+
     if (holiness & (MH_EVIL | MH_DEMONIC | MH_UNDEAD))
         _spec_skills[SP_MONSTER][SK_NECROMANCY] += 1;
     else if (holiness & MH_NATURAL)
         _spec_skills[SP_MONSTER][SK_NECROMANCY] -= 1;
 
-    _spec_skills[SP_MONSTER][SK_FIRE_MAGIC] = you.monster_instance->res_fire();
-    _spec_skills[SP_MONSTER][SK_ICE_MAGIC] = you.monster_instance->res_cold();
-    _spec_skills[SP_MONSTER][SK_ICE_MAGIC]
-                            -= you.get_mutation_level(MUT_COLD_BLOODED);
-    _spec_skills[SP_MONSTER][SK_POISON_MAGIC]
-                            = you.monster_instance->res_poison();
+    // tweak some elemental skills over and above current base levels, but
+    // don't give a boost if there is already one
+    if (you.monster_instance->res_negative_energy(true)
+                            && _spec_skills[SP_MONSTER][SK_NECROMANCY] <= 0)
+    {
+        _spec_skills[SP_MONSTER][SK_NECROMANCY]++;
+    }
+    if (you.monster_instance->res_fire()
+                            && _spec_skills[SP_MONSTER][SK_FIRE_MAGIC] <= 0)
+    {
+        _spec_skills[SP_MONSTER][SK_FIRE_MAGIC]++;
+    }
+    if (you.monster_instance->res_cold()
+                            && _spec_skills[SP_MONSTER][SK_ICE_MAGIC] <= 0)
+    {
+        _spec_skills[SP_MONSTER][SK_ICE_MAGIC]++;
+    }
+    if (you.monster_instance->res_poison()
+                            && _spec_skills[SP_MONSTER][SK_POISON_MAGIC] <= 0)
+    {
+        _spec_skills[SP_MONSTER][SK_POISON_MAGIC]++;
+    }
+
+    if (you.monster_instance->res_elec()
+                            && _spec_skills[SP_MONSTER][SK_AIR_MAGIC] <= 0)
+    {
+        _spec_skills[SP_MONSTER][SK_AIR_MAGIC]++;
+    }
+
     if (holiness & MH_PLANT)
         _spec_skills[SP_MONSTER][SK_POISON_MAGIC] += 1;
-    _spec_skills[SP_MONSTER][SK_AIR_MAGIC] = you.monster_instance->res_elec();
 
-    if (species == SP_MONSTER && you.monster_instance)
+    if (species == SP_MONSTER)
     {
-        // earth magic??
+        // stuff to skip for species genus characters
+
         if (you.monster_instance->is_actual_spellcaster())
             _spec_skills[SP_MONSTER][SK_SPELLCASTING] += 1;
+        
+        _spec_skills[SP_MONSTER][SK_ICE_MAGIC]
+                            -= you.get_mutation_level(MUT_COLD_BLOODED);
 
         switch (you.monster_instance->body_size())
         {
@@ -2209,11 +2252,13 @@ int species_apt(skill_type skill, mc_species species)
                         && species != MONS_NO_MONSTER
                         && species != mons_species_initialized)
     {
+        // kind of hacky, but it makes the merge easier (and this whole thing
+        // is hacky): rewrite monster skills based on monster details.
         _init_monster_skills();
         mons_species_initialized = species;
     }
 
-    return max(UNUSABLE_SKILL, _spec_skills[species.genus()][skill]
+    return max(UNUSABLE_SKILL, _spec_skills[species.base][skill]
                                - you.get_mutation_level(MUT_UNSKILLED));
 }
 
