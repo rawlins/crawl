@@ -358,7 +358,7 @@ LUARET1(you_poisoned, boolean, you.duration[DUR_POISONING])
  * @treturn boolean
  * @function invisible
  */
-LUARET1(you_invisible, boolean, you.duration[DUR_INVIS])
+LUARET1(you_invisible, boolean, you.invisible())
 /*** Are you mesmerised?
  * @treturn boolean
  * @function mesmerised

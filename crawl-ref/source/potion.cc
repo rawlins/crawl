@@ -432,7 +432,7 @@ public:
         }
         else
         {
-            mprf(MSGCH_DURATION, !you.duration[DUR_INVIS]
+            mprf(MSGCH_DURATION, !you.invisible()
                  ? "You fade into invisibility!"
                  : "You fade further into invisibility.");
         }

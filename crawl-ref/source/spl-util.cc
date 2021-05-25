@@ -1272,6 +1272,8 @@ string spell_uselessness_reason(spell_type spell, bool temp, bool prevent,
         break;
 
     case SPELL_INVISIBILITY:
+        if (you.species.is_monster() && you.monster_instance->invisible())
+            return "you are already permanently invisible.";
         if (!prevent && temp && you.backlit())
             return "invisibility won't help you when you glow in the dark.";
         break;

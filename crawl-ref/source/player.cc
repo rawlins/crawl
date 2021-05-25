@@ -4714,7 +4714,12 @@ bool invis_allowed(bool quiet, string *fail_reason)
     string msg;
     bool success = true;
 
-    if (you.haloed() && you.halo_radius() != -1)
+    if (you.species.is_monster() && you.monster_instance->invisible())
+    {
+        msg = "You are already permanently invisible.";
+        success = false;
+    }
+    else if (you.haloed() && you.halo_radius() != -1)
     {
         bool divine = you.props.exists(WU_JIAN_HEAVENLY_STORM_KEY)
                       || you.religion == GOD_SHINING_ONE;
@@ -7021,7 +7026,7 @@ bool player::innate_sinv() const
 bool player::invisible() const
 {
     return (duration[DUR_INVIS] || form == transformation::shadow
-                || species == SP_MONSTER && monster_instance->invisible())
+                || species.is_monster() && monster_instance->invisible())
            && !backlit();
 }
 

@@ -1722,7 +1722,7 @@ static bool _check_ability_possible(const ability_def& abil, bool quiet = false)
                && (quiet || berserk_check_wielded_weapon());
 
     case ABIL_EVOKE_TURN_INVISIBLE:
-        if (you.duration[DUR_INVIS])
+        if (you.invisible())
         {
             if (!quiet)
                 mpr("You are already invisible!");

@@ -953,8 +953,14 @@ static void _describe_missiles(status_info& inf)
 
 static void _describe_invisible(status_info& inf)
 {
-    if (!you.duration[DUR_INVIS] && you.form != transformation::shadow)
+    const bool mon_invis = you.species.is_monster()
+                                    && you.monster_instance->invisible();
+    // TODO: code duplication
+    if (!you.duration[DUR_INVIS] && you.form != transformation::shadow
+        && !mon_invis)
+    {
         return;
+    }
 
     if (you.form == transformation::shadow)
     {
@@ -971,7 +977,7 @@ static void _describe_invisible(status_info& inf)
         inf.short_text += " (but backlit and visible)";
     }
     inf.long_text = "You are " + inf.short_text + ".";
-    _mark_expiring(inf, dur_expiring(you.form == transformation::shadow
+    _mark_expiring(inf, !mon_invis && dur_expiring(you.form == transformation::shadow
                                      ? DUR_TRANSFORMATION
                                      : DUR_INVIS));
 }

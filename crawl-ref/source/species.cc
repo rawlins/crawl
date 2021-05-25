@@ -387,6 +387,10 @@ namespace species
             if (mons_class_flag(you.species, M_CONFUSED))
                 result.push_back(terse ? "confused" : "You are permanently confused.");
 
+            // invis is already shown as a status
+            if (mons_class_flag(you.species, M_INVIS) && !terse)
+                result.push_back("You are permanently invisible.");
+
             // species-specific stuff
             if (species == MONS_ELEMENTAL_WELLSPRING)
                 result.push_back(terse ? "watery" : "You exude water.");
