@@ -392,6 +392,8 @@ namespace species
                 result.push_back("You are permanently invisible.");
 
             // species-specific stuff
+            if (species == MONS_SILENT_SPECTRE)
+                result.push_back(terse ? "silence" : "You are surrounded by an aura of silence.");
             if (species == MONS_ELEMENTAL_WELLSPRING)
                 result.push_back(terse ? "watery" : "You exude water.");
             else if (species == MONS_WATER_NYMPH)

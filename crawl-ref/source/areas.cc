@@ -518,6 +518,8 @@ static int _shrinking_aoe_range(int dur)
 
 int player::silence_radius() const
 {
+    if (species == MONS_SILENT_SPECTRE)
+        return 10;
     return _shrinking_aoe_range(duration[DUR_SILENCE]);
 }
 
@@ -752,6 +754,9 @@ int player::umbra_radius() const
         size = min((int)piety, piety_breakpoint(5)) * you.normal_vision
                                                     / piety_breakpoint(5);
     }
+
+    if (species.is_monster() && monster_instance)
+        size = max(size, monster_instance->umbra_radius());
 
     if (player_equip_unrand(UNRAND_SHADOWS))
         size = max(size, 3);
