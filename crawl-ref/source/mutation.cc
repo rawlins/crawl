@@ -948,6 +948,10 @@ static vector<string> _get_mutations(bool terse)
 
     switch (you.body_size(PSIZE_TORSO, true))
     {
+    case SIZE_TINY: // I don't think this currently comes up?
+        armour_mut = terse ? "no armour"
+            : "You are too small for all types of armour.";
+        break;
     case SIZE_LITTLE:
         armour_mut = terse ? "unfitting armour"
             : "You are too small for most types of armour.";
@@ -958,11 +962,16 @@ static vector<string> _get_mutations(bool terse)
         weapon_mut = terse ? "no large weapons"
             : "You are small and have problems with some larger weapons.";
         break;
+    case SIZE_BIG: // TODO: any differences between these?
     case SIZE_LARGE:
         armour_mut = terse ? "unfitting armour"
             : "You are too large for most types of armour.";
         break;
-    default: // no giant species
+    case SIZE_GIANT:
+        armour_mut = terse ? "no armour"
+            : "You are too large for all types of armour.";
+        break;
+    default:
         break;
     }
     // Could move this into species-data, but then the hack that assumes
