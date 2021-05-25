@@ -45,6 +45,7 @@
 #include "mon-explode.h"
 #include "mon-place.h"
 #include "mon-util.h"
+#include "mon-speak.h"
 #include "mutation.h"
 #include "nearby-danger.h"
 #include "notes.h"
@@ -1123,7 +1124,20 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
     take_note(Note(NOTE_DEATH, you.hp, you.hp_max,
                     se.death_description(scorefile_entry::DDV_NORMAL).c_str()),
               true);
-    if (you.lives && !non_death)
+    bool needs_death_more = false;
+    if (you.species.is_monster())
+    {
+        // simulate death messages
+        unwind_var<int> proxy_hp(you.monster_instance->hit_points, -1);
+        if (mons_speaks(you.monster_instance.get()))
+            needs_death_more = true;
+    }
+
+
+    // TODO: it would be more consistent with boris's gimmick if the player
+    // regenerated on a different, deeper, level
+    if ((you.lives || you.species == MONS_BORIS)
+        && !non_death)
     {
         mark_milestone("death", lowercase_first(se.long_kill_message()).c_str());
 
@@ -1136,7 +1150,9 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
                 false, false);
         }
 
-        you.lives--;
+        // not supposed to be used for Boris, but let's keep the value sane
+        if (you.species != MONS_BORIS)
+            you.lives--;
         you.pending_revival = true;
 
         stop_delay(true);
@@ -1165,8 +1181,13 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
         // lurking horror triggers immediately
         if (you.species != MONS_LURKING_HORROR)
             fire_final_effects();
-        more();
+        // TODO: the explosion messaging can be really spammy, and there's no
+        // quick way to see what happened before that
+        needs_death_more = true;
     }
+
+    if (needs_death_more)
+        more();
 
     // Prevent bogus notes.
     activate_notes(false);

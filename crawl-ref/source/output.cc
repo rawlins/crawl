@@ -2357,13 +2357,17 @@ static vector<formatted_string> _get_overview_stats()
     }
 
     if (you.has_mutation(MUT_MULTILIVED)
-        || you.species == MONS_BENNU)
+        || you.species == MONS_BENNU
+        || you.species == MONS_BORIS)
     {
         entry.textcolour(HUD_CAPTION_COLOUR);
         entry.cprintf("Lives:  ");
 
         entry.textcolour(HUD_VALUE_COLOUR);
-        entry.cprintf("%d", you.lives);
+        if (you.species == MONS_BORIS)
+            entry.cprintf("∞");
+        else
+            entry.cprintf("%d", you.lives);
 
         entry.textcolour(HUD_CAPTION_COLOUR);
         entry.cprintf("   Deaths: ");
