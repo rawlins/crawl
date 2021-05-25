@@ -407,7 +407,7 @@ _hostile_imp_rare_
 
 VISUAL:@The_monster@ spits at @foe@.
 
-VISUAL:@The_monster@ picks up a beetle and eats it.
+VISUAL:@The_monster@ picks up a beetle and eats it. @player_only@
 
 @The_monster@ sputters.
 
@@ -496,9 +496,9 @@ w:4
 %%%%
 _friendly_silenced_common_
 
-VISUAL:@The_monster@ gives you the thumbs up.
+VISUAL:@The_monster@ gives you the thumbs up. @player_only@
 
-VISUAL:@The_monster@ says something you can't hear.
+VISUAL:@The_monster@ says something you can't hear. @player_only@
 %%%%
 _friendly_silenced_rare_
 
@@ -508,7 +508,7 @@ VISUAL:@The_monster@ waves at you.
 
 VISUAL:@The_monster@ smiles happily.
 
-VISUAL:@The_monster@ jumps up and down, looking for your attention.
+VISUAL:@The_monster@ jumps up and down, looking for your attention. @player_only@
 
 VISUAL:@The_monster@ winks at you.
 ## END friendly silenced humanoid ##
@@ -4102,7 +4102,7 @@ VISUAL:@The_monster@ yawns in an exaggerated manner.
 
 @The_monster@ says, "You call yourself an adventurer? Hah!"
 
-@The_monster@ says, "I've killed five 'adventurers' today. Will you be the sixth?"
+@The_monster@ says, "I've killed five 'adventurers' today. Will you be the sixth?" @player_only@
 
 @The_monster@ says, "Challenge me? You, and whose army?" @player_only@
 
@@ -4297,6 +4297,7 @@ _Grinder_rare_
 VISUAL:@The_monster@ rolls @possessive@ eyes.
 %%%%
 ############ GRUM ### A war dog-breeding gnoll
+# TODO: grum verbs work badly for player grum
 Grum
 
 @_Grum_common_@
@@ -4314,14 +4315,14 @@ VISUAL:@The_monster@ bares @possessive@ teeth.
 
 @The_monster@ lets out an intimidating howl.
 
-VISUAL:@The_monster@ sniffs the air and quickly glances around.
+VISUAL:@The_monster@ sniffs the air and quickly glances around. @player_only@
 
 ## The following ones make little sense after you've killed his dogs. Maybe Grum is a little bit crazy..? ##
 @The_monster@ points @possessive@ finger @at_foe@ and @_Grum_verb_@, "Attack!"
 
 @The_monster@ points @possessive@ finger @at_foe@ and shouts, "@_Grum_dog_name_@! Sic 'em!"
 
-@The_monster@ glances around and shouts, "@_Grum_dog_name_@! Here boy!"
+@The_monster@ glances around and @says@, "@_Grum_dog_name_@! Here boy!"
 
 @The_monster@ shouts, "@_Grum_dog_name_@! Good boy!"
 
@@ -4607,7 +4608,7 @@ confused Ijyb
 
 @The_monster@ screams @at_foe@, "No nasty magic on me!"
 
-VISUAL:@The_monster@ clutches @possessive@ head and gibbers rapidly, swaying.
+VISUAL:@The_monster@ clutches @possessive@ head and gibbers rapidly, swaying. @player_only@
 ## END Ijyb ##
 %%%%
 ############ ILSUIW ### a powerful merfolk witch
@@ -4861,7 +4862,7 @@ VISUAL:@The_monster@ throws some [strange|weird|mysterious] powder @at_foe@.
 
 @The_monster@ says @to_foe@, "Odis was a nice man, you're awful."
 
-@The_monster@ holds @possessive@ sides and says @to_foe@, "You'll eat dirt beneath my feet."
+@The_monster@ says @to_foe@, "You'll eat dirt beneath my feet."
 
 # "moly" is a magic herb, mentioned only in Kirke's myth (as an antidote to
 # Kirke's potions) and in the English interjection.
@@ -4934,7 +4935,7 @@ VISUAL:@The_monster@ smiles, but it's obviously fake.
 
 @The_monster@ says @to_foe@, "Fear not. I will immortalize you in the tale of my first kill."
 
-VISUAL:@The_monster@ gives herself a magical halo, but it quickly sputters out.
+VISUAL:@The_monster@ gives @reflexive@ a magical halo, but it quickly sputters out.
 
 @The_monster@ mumbles the words to a spell, but in the wrong order.
 %%%%
@@ -4950,7 +4951,7 @@ _Maggie_rare_
 
 @The_monster@ shouts @at_foe@, "Leave me alone!"
 
-@The_monster@ mutters to herself, "Master Lance won't take me back. This is the way forward."
+@The_monster@ mutters to @reflexive@, "Master Lance won't take me back. This is the way forward."
 ## END Maggie ##
 %%%%
 ############ MARA ### A powerful demon lord, Lord of Illusions
@@ -4988,7 +4989,7 @@ _Mara_rare_
 # Lord of Light
 @The_monster@ screams, "Tenfold be your damnation!"
 
-@The_monster@'s features momentarily become yours. "Wouldst slay thyself?"
+@The_monster@'s features momentarily become yours. "Wouldst slay thyself?" @player_only@
 
 @The_monster@ says, "I stand as high above you as a star above the ocean's bottom."
 
@@ -5120,11 +5121,11 @@ Maurice confused nonstealing
 w:70
 __NONE
 
-@The_monster@ makes a clumsy attempt to grab your valuables.
+@The_monster@ makes a clumsy attempt to grab your valuables. @player_only@
 
-@The_monster@ fumbles for your pockets and misses.
+@The_monster@ fumbles for your pockets and misses. @player_only@
 
-@The_monster@ lunges for your pockets and trips.
+@The_monster@ lunges for your pockets and trips. @player_only@
 
 w:5
 @The_monster@ sings off-key, "You got some money for me?"
@@ -5466,7 +5467,7 @@ w:1
 @The_monster@ says, "I schooled the Big Guy. You'll be no problem."
 
 w:1
-@The_monster@ tries to tell @foe@ a complicated story about hydras, @possessive@ blood, and marriage.
+@The_monster@ tries to tell @foe@ a complicated story about hydras, @possessive@ blood, and marriage. @player_only@
 ## END NESSOS
 %%%%
 ############ NIKOLA ### A brilliant scientist obsessed with electricity.
@@ -5579,7 +5580,7 @@ VISUAL:@The_monster@ wildly rolls @possessive@ eye at @foe@.
 %%%%
 _Polyphemus_rare_
 
-VISUAL:@The_monster@ seems to be sizing @foe@ up for @possessive@ next meal.
+VISUAL:@The_monster@ seems to be sizing @foe@ up for @possessive@ next meal. @player_only@
 
 VISUAL:@The_monster@ stomps at the @surface@ furiously.
 
@@ -5617,7 +5618,7 @@ _Prince_Ribbit_rare_
 
 @The_monster@ says @to_foe@, "You're just another fly to me."
 
-VISUAL:@The_monster@ winks @at_foe@ and puckers @possessive@ lips.
+VISUAL:@The_monster@ winks @at_foe@ and puckers @possessive@ lips. @player_only@
 %%%%
 _frog_food_
 
@@ -5917,7 +5918,7 @@ _Sigmund_common_
 w:20
 @The_monster@ laughs darkly.
 
-VISUAL:@The_monster@ looks at you with fury.
+VISUAL:@The_monster@ looks at you with fury. @player_only@
 
 @The_monster@ flickers, as though insubstantial.
 
@@ -6090,17 +6091,17 @@ VISUAL:@The_monster@ stares @at_foe@ with @possessive@ one eyeball.
 
 @The_monster@ howls with blood-lust.
 
-@The_monster@ squints and says @to_foe@, "You're the ugliest harpy I ever saw."
+@The_monster@ squints and @says@ @to_foe@, "You're the ugliest harpy I ever saw."
 
-@The_monster@ squints and says @to_foe@, "My one eye mightn't be all that good, but I can see you just fine with it, harpy."
+@The_monster@ squints and @says@ @to_foe@, "My one eye mightn't be all that good, but I can see you just fine with it, harpy."
 
-@The_monster@ squints and screams @at_foe@, "A harpy? Time to die, you blasted buzzard!"
+@The_monster@ squints and @says@ @to_foe@, "A harpy? Time to die, you blasted buzzard!"
 
-@The_monster@ squints and screams @at_foe@, "I know a harpy when I see one!"
+@The_monster@ squints and @says@ @to_foe@, "I know a harpy when I see one!"
 
-@The_monster@ squints, then shrugs and mutters, "Close enough."
+@The_monster@ squints, then @says@, "Close enough."
 
-@The_monster@ grins and says, "Time to carve some turkeys."
+@The_monster@ grins and @says@, "Time to carve some turkeys."
 
 @The_monster@ screams @at_foe@, "Bird-brain!"
 
@@ -6119,8 +6120,6 @@ VISUAL:@The_monster@ stares @at_foe@ with @possessive@ one eyeball.
 @The_monster@ screams @at_foe@, "I'm goin' to kill you! Now!"
 %%%%
 _Urug_rare_
-
-VISUAL:@The_monster@ winks @at_foe@... or blinks.
 
 @The_monster@ screams @at_foe@, "Your bloody kin took my one good eye. Now you die, harpy!"
 
@@ -6155,7 +6154,7 @@ w:5
 %%%%
 _Vashnia_common_
 
-VISUAL:@The_monster@ makes some cryptic hand gestures, then points @at_foe@.
+VISUAL:@The_monster@ makes some cryptic hand gestures, then points @at_foe@. @player_only@
 
 VISUAL:@The_monster@ takes aim @at_foe@.
 
@@ -6291,9 +6290,9 @@ chaos spawn
 
 VISUAL:@The_monster@ grows dozens of eye stalks in order to get a better look at @foe@.
 
-VISUAL:@The_monster@ splatters into many small globs of multi-coloured light, then recombines.
+VISUAL:@The_monster@ splatters into many small globs of multi-coloured light, then recombines. @player_only@
 
-VISUAL:@The_monster@ briefly grows a face disturbingly similar to your own.
+VISUAL:@The_monster@ briefly grows a face disturbingly similar to your own. @player_only@
 
 @The_monster@ ululates chillingly with @possessive@ many mouths.
 
@@ -6346,9 +6345,9 @@ deep elf sorcerer
 ################## Dream sheep ###################################
 dream sheep
 
-@The_monster@ "Baaaas" balefully.
+@The_monster@ baaaas balefully.
 
-@The_monster@ "Baaaas" sleepily.
+@The_monster@ baaaas sleepily.
 %%%%
 ################## Electric golem ##########################
 default electric golem
@@ -6450,7 +6449,7 @@ VISUAL:@The_monster@ smiles at @foe@.
 
 VISUAL:@The_monster@ grins with merry abandon.
 
-VISUAL:@The_monster@ pulls ten torches off @possessive@ hat and starts juggling.
+VISUAL:@The_monster@ pulls ten torches off @possessive@ hat and starts juggling. @player_only@
 
 VISUAL:@The_monster@ sprays water @at_foe@.
 
@@ -6464,7 +6463,7 @@ VISUAL:@The_monster@ pantomimes @foe_possessive@ execution.
 
 VISUAL:@The_monster@ pokes out @possessive@ tongue.
 
-VISUAL:@The_monster@ grows four more heads, takes them off and juggles!
+VISUAL:@The_monster@ grows four more heads, takes them off and juggles! @player_only@
 
 VISUAL:@The_monster@ skips for a moment.
 
@@ -6641,11 +6640,11 @@ VISUAL:@The_monster@ salutes you.
 %%%%
 holy_being_pacification_speech
 
-@The_monster@ shouts at you, "Continue thy quest, mortal!"
+@The_monster@ shouts at you, "Continue thy quest, mortal!" @player_only@
 
-@The_monster@ says to you, "Forge ahead, servant of Elyvilon!"
+@The_monster@ says to you, "Forge ahead, servant of Elyvilon!" @player_only@
 
-@The_monster@ says to you, "Carry on, mortal."
+@The_monster@ says to you, "Carry on, mortal." @player_only@
 %%%%
 #############################################################
 # evil monsters may also have some choice things to say...
@@ -6736,6 +6735,7 @@ apostate
 orc
 
 # stay silent most of the time
+# TODO: how to disable for players? (Just results in generic shouting)
 w:19
 __NONE
 
