@@ -288,9 +288,11 @@ static string _get_speak_string(const vector<string> &prefixes,
     {
         //separate death/permadeath lines for resurrection monsters
         if (mons_is_mons_class(mons, MONS_NATASHA)
-               && !mons_felid_can_revive(mons)
+               && (mons->is_player_proxy() && you.lives <= 0
+                    || !mons_felid_can_revive(mons))
             || mons->type == MONS_BENNU
-               && !mons_bennu_can_revive(mons))
+               && (mons->is_player_proxy() && you.lives <= 0
+                    || !mons_bennu_can_revive(mons)))
         {
             key += " permanently";
         }

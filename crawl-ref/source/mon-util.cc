@@ -4658,6 +4658,10 @@ string do_mon_str_replacements(const string &in_msg, const monster& mons,
     msg = replace_all(msg, "@objective@",
                       mons.pronoun(PRONOUN_OBJECTIVE));
 
+    // TODO: super hacky, fix up some of Natasha's death messages that get
+    // missed by the earlier monster player code
+    msg = replace_all(msg, "you dies", "you die");
+
     // Body parts.
     bool   can_plural = false;
     string part_str   = mons.hand_name(false, &can_plural);
