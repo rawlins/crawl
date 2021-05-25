@@ -1078,6 +1078,14 @@ species_type mons_species_to_player_species(monster_type mons)
                                         ? MONS_SALAMANDER : mons_genus(mons);
     if (genus == MONS_DRACONIAN)
         genus = mons_species(mons);
+    // high elf is early in the enum, so we have to hardcode some cases here.
+    // Everything that is genus Elf, with the exception of MONS_ELF itself
+    // corresponds to deep elf. High elf apts are still kicking around,
+    // so why not make MONS_ELF use them.
+    if (mons == MONS_ELF)
+        return SP_HIGH_ELF;
+    else if (genus == MONS_ELF)
+        return SP_DEEP_ELF;
     for (int i = SP_HUMAN; i < NUM_SPECIES; i++)
     {
         auto s = static_cast<species_type>(i);
