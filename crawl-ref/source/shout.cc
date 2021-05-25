@@ -28,6 +28,7 @@
 #include "mon-behv.h"
 #include "mon-place.h"
 #include "mon-poly.h"
+#include "mon-speak.h"
 #include "prompt.h"
 #include "religion.h"
 #include "state.h"
@@ -751,7 +752,8 @@ void yell(const actor* mon)
              you.duration[DUR_RECITE] ? " your recitation" : "",
              mon->name(DESC_THE).c_str());
     }
-    else
+    else if (!you.species.is_monster()
+                            || !mons_speaks(you.monster_instance.get()))
     {
         mprf(MSGCH_SOUND, "You %s%s!",
              shout_verb.c_str(),

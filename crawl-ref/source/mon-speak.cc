@@ -21,6 +21,7 @@
 #include "mon-death.h"
 #include "monster.h"
 #include "mon-util.h"
+#include "nearby-danger.h"
 #include "religion.h"
 #include "skills.h"
 #include "state.h"
@@ -409,6 +410,15 @@ static actor* _get_foe(const monster &mon)
     return mon.get_foe();
 }
 
+static monster * _find_any_monster()
+{
+    // TODO: maybe filter firewood?
+    auto m = get_nearby_monsters(false, true, false, false, true);
+    if (m.size() == 0)
+        return nullptr;
+    return m[0];
+}
+
 // Returns true if something is said.
 bool mons_speaks(monster* mons)
 {
@@ -425,11 +435,12 @@ bool mons_speaks(monster* mons)
     // Monsters talk on death even if invisible/silenced/etc.
     int duration = 1;
     const bool force_speak = !mons->alive()
+        || mons->is_player_proxy()
         || (mons->flags & MF_BANISHED) && !player_in_branch(BRANCH_ABYSS)
         || (mons->is_summoned(&duration) && duration <= 0)
         || crawl_state.prev_cmd == CMD_LOOK_AROUND; // Wizard testing
 
-    const bool unseen   = !you.can_see(*mons);
+    const bool unseen   = !you.can_see(*mons) && !mons->is_player_proxy();
     const bool confused = mons->confused();
 
     if (!force_speak)
@@ -471,10 +482,11 @@ bool mons_speaks(monster* mons)
 
         prefixes.emplace_back("neutral");
     }
-    else if (mons->friendly() && !crawl_state.game_is_arena())
+    else if (mons->friendly() && !crawl_state.game_is_arena() && !mons->is_player_proxy())
         prefixes.emplace_back("friendly");
     else
         prefixes.emplace_back("hostile");
+    // TODO: some friendly messages would be ok for player, e.g. hound?
 
     if (mons_is_fleeing(*mons))
         prefixes.emplace_back("fleeing");
@@ -493,7 +505,9 @@ bool mons_speaks(monster* mons)
     if (mons->props.exists("speech_prefix"))
         prefixes.push_back(mons->props["speech_prefix"].get_string());
 
-    const actor*    foe  = _get_foe(*mons);
+    const actor* foe = mons->is_player_proxy()
+                            ? _find_any_monster()
+                            : _get_foe(*mons);
     const monster* m_foe = foe ? foe->as_monster() : nullptr;
 
     if (!foe || foe->is_player() || mons->wont_attack())
@@ -554,6 +568,7 @@ bool mons_speaks(monster* mons)
     if (player_has_orb())
         prefixes.emplace_back("orb");
 
+
 #ifdef DEBUG_MONSPEAK
     {
         string prefix;
@@ -570,6 +585,7 @@ bool mons_speaks(monster* mons)
 
     const bool no_foe      = (foe == nullptr);
     const bool no_player   = crawl_state.game_is_arena()
+                             || mons->is_player_proxy()
                              || (!mons->wont_attack()
                                  && (!foe || !foe->is_player()));
     const bool mon_foe     = (m_foe != nullptr);
@@ -636,14 +652,14 @@ bool mons_speaks(monster* mons)
         // old speech?
         if (!mons->mname.empty() && mons->can_speak() && msg.empty())
         {
-            msg = _get_speak_string(prefixes, mons->name(DESC_PLAIN),
+            msg = _get_speak_string(prefixes, mons->name(DESC_PLAIN, mons->is_player_proxy()),
                                     mons, no_player, no_foe, no_foe_name,
                                     no_god, unseen);
         }
 
         if (msg.empty())
         {
-            msg = _get_speak_string(prefixes, mons->base_name(DESC_PLAIN),
+            msg = _get_speak_string(prefixes, mons->base_name(DESC_PLAIN, mons->is_player_proxy()),
                                     mons, no_player, no_foe, no_foe_name,
                                     no_god, unseen);
         }
@@ -808,7 +824,7 @@ bool invalid_msg(const monster &mon, string msg)
 bool mons_speaks_msg(monster* mons, const string &msg,
                      const msg_channel_type def_chan, bool silence)
 {
-    if (!you.see_cell(mons->pos()))
+    if (!you.see_cell(mons->pos()) && !mons->is_player_proxy())
         return false;
 
     mon_acting mact(mons);
@@ -850,7 +866,7 @@ bool mons_speaks_msg(monster* mons, const string &msg,
         if (msg_type == MSGCH_TALK_VISUAL)
             silence = false;
 
-        if (msg_type == MSGCH_TALK_VISUAL && !you.can_see(*mons))
+        if (msg_type == MSGCH_TALK_VISUAL && !you.can_see(*mons) && !mons->is_player_proxy())
             noticed = old_noticed;
         else
         {

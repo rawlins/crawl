@@ -275,12 +275,29 @@ string deconjugate_verb(const string &verb)
                + verb.substr(space);
     }
 
-    // Only one verb in English differs between infinitive and plural.
     if (verb == "are" || verb == "is" || verb == "be")
-        return "is";
+        return "are";
 
     if (verb == "have" || verb == "has")
         return "have";
+
+    if (verb == "does")
+        return "do";
+
+    // `lashes` -> `lash`, but not `breathes` -> `breath`
+    // `hisses` -> `hiss`, but not `pauses` -> `paus`
+    if (ends_with(verb, "ches")
+        || ends_with(verb, "shes")
+        || ends_with(verb, "sses"))
+    {
+        return verb.substr(0, verb.size() - 2);
+    }
+
+    // more general rule runs up against stuff like "dies"
+    if (verb == "cries")
+        return "cry";
+    if (verb == "tries")
+        return "try";
 
     if (ends_with(verb, "s"))
         return verb.substr(0, verb.size() - 1);

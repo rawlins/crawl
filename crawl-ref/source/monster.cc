@@ -2304,7 +2304,8 @@ static string _mon_special_name(const monster& mon, description_level_type desc,
 string monster::name(description_level_type desc, bool force_vis,
                      bool force_article) const
 {
-    if (is_player_proxy())
+    // TODO: this is pretty buggy
+    if (is_player_proxy() && desc != DESC_DBNAME && desc != DESC_PLAIN)
         return you.name(desc, true, force_article);
     string s = _mon_special_name(*this, desc, force_vis);
     if (!s.empty() || desc == DESC_NONE)
@@ -2347,6 +2348,8 @@ string monster::full_name(description_level_type desc) const
 
 string monster::pronoun(pronoun_type pro, bool force_visible) const
 {
+    if (is_player_proxy())
+        return you.pronoun(pro);
     const bool seen = force_visible || you.can_see(*this);
     if (seen && props.exists(MON_GENDER_KEY))
     {

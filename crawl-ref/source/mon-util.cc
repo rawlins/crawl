@@ -50,6 +50,7 @@
 #include "mon-poly.h"
 #include "mon-tentacle.h"
 #include "mutant-beast.h"
+#include "nearby-danger.h"
 #include "notes.h"
 #include "options.h"
 #include "random.h"
@@ -4363,6 +4364,74 @@ static string _replace_speech_tag(string msg, string from, const string &to)
     return msg;
 }
 
+// XX duplicated in mon-speak.cc
+static monster * _find_any_monster()
+{
+    // TODO: maybe filter firewood?
+    auto m = get_nearby_monsters(false, true, false, false, true);
+    if (m.size() == 0)
+        return nullptr;
+    return m[0];
+}
+
+/// Return a pair consisting of the position of the next word, and a string
+/// of the next word, skipping initial punctuation.
+static pair<size_t, string> _find_next_word(const string &msg, size_t start=0)
+{
+#define SKIP_PUNCT " .,:;\n"
+    // TODO: better handling of punctuation after verb.
+    // Possibly this should search for a continguous alpha string..
+    const size_t initial_skip = msg.find_first_not_of(SKIP_PUNCT, start);
+    if (initial_skip == string::npos)
+        return make_pair(string::npos, "");
+    const size_t sep = msg.find_first_of(SKIP_PUNCT, initial_skip);
+    const size_t len = sep == string::npos ? string::npos : sep - initial_skip;
+    return make_pair(initial_skip, msg.substr(initial_skip, len));
+#undef SKIP_PUNCT
+}
+
+/// Where `cur` is a _find_next_word return value, find the next word following
+/// it.
+static pair<size_t, string> _find_next_word(const string &msg,
+                                            const pair<size_t, string> &cur)
+{
+    if (cur.first == string::npos)
+        return make_pair(string::npos, "");
+    return _find_next_word(msg, cur.first + cur.second.size());
+}
+
+static pair<size_t, string> _find_verb_to_reinflect(const string &msg, size_t start)
+{
+    // Hilarious janky finite state parsing code follows...
+    // If the sentence starts with the monster name, find an immediately
+    // following verb to reinflect with 1SG agreement. Skip adverbs.
+    // Assumes that there always *is* a verb, among other things...
+
+    auto next = _find_next_word(msg, start);
+    // First, skip the VISUAL/SOUND tag if there is one. `:` needs to be in the
+    // punctuation list to handle this.
+    if (next.second == "VISUAL" || next.second == "SOUND")
+        next = _find_next_word(msg, next);
+
+    if (next.first == string::npos
+        || (!starts_with(lowercase(next.second), "@the_monster@")
+            && next.second != "and"))
+    {
+        return make_pair(string::npos, "");
+    }
+
+    // if the subject is `@the_monster@'s`, the next word is probably going
+    // to be a noun. Skip it. (Won't handle complex NPs.)
+    // example: `@The_monster@'s form shimmers in the rain.`
+    if (ends_with(next.second, "'s"))
+        next = _find_next_word(msg, next);
+    next = _find_next_word(msg, next);
+    // The verb may be preceded by an adverb, skip it.
+    if (ends_with(next.second, "ly")) // skip adverbs
+        next = _find_next_word(msg, next);
+    return next;
+}
+
 // Replaces the "@foo@" strings in monster shout and monster speak
 // definitions.
 string do_mon_str_replacements(const string &in_msg, const monster& mons,
@@ -4370,7 +4439,8 @@ string do_mon_str_replacements(const string &in_msg, const monster& mons,
 {
     string msg = in_msg;
 
-    const actor* foe = (mons.wont_attack()
+    const actor* foe =  mons.is_player_proxy() ? _find_any_monster() :
+                        (mons.wont_attack()
                           && invalid_monster_index(mons.foe)) ?
                              &you : mons.get_foe();
 
@@ -4463,26 +4533,48 @@ string do_mon_str_replacements(const string &in_msg, const monster& mons,
 
     description_level_type nocap = DESC_THE, cap = DESC_THE;
 
+    bool plural_subject = false;
     if (mons.is_named() && you.can_see(mons) || mons.is_player_proxy())
     {
-        if (mons.is_player_proxy()
-            && (msg.find("@The_monster@") == 0 || msg.find("@the_monster@") == 0))
+        if (mons.is_player_proxy())
         {
-            // probably extremely brittle. If the sentence starts with the
-            // monster name, find the immediately following verb and reconjugate
-            // for the player. TODO: punctuation after verb
-            const size_t first_space = msg.find(" ");
-            if (first_space != string::npos)
+            // a bit hacky but this is how possessive monster forms are
+            // represented in the speech db. We do this first because if this
+            // happens in subject position, we don't want to reinflect the
+            // verb.
+            msg = replace_all(msg, "@the_monster@'s", "your");
+            msg = replace_all(msg, "@The_monster@'s", "Your");
+
+            size_t line_start = 0;
+            // multi-line messages are possible, e.g. from wizards
+            while (line_start != string::npos)
             {
-                const size_t second_space = msg.find(" ", first_space + 1);
-                dprf("verb from %lu to %lu", first_space, second_space);
-                if (second_space != string::npos && second_space - first_space > 1)
+                // Very brittle. Is it safe to always assume there's a verb?
+                // TODO: having written all this, I think it might be better
+                // to just annotate verbs in monspeak.txt so they can be
+                // explicitly templated
+                auto verb = _find_verb_to_reinflect(msg, line_start);
+                if (verb.first != string::npos)
                 {
-                    const size_t len = second_space - first_space - 1;
-                    const string verb = msg.substr(first_space + 1, len);
-                    dprf("replacing '%s' with '%s'", verb.c_str(), mons.conj_verb(deconjugate_verb(verb)).c_str());
-                    msg.replace(first_space + 1, len, mons.conj_verb(deconjugate_verb(verb)));
+                    const string reinflected = mons.conj_verb(
+                                                    deconjugate_verb(verb.second));
+                    dprf("Replacing verb at %lu: `%s` with `%s`", verb.first,
+                        verb.second.c_str(), reinflected.c_str());
+                    msg.replace(verb.first, verb.second.size(), reinflected);
+
+                    plural_subject = true;
+
+                    verb = _find_next_word(msg, verb.first + reinflected.size());
+                    if (verb.second == "and")
+                    {
+                        // handle conjoined Vs, does not handle conjoined VPs
+                        // also will not handle multiple conjuncts using comma
+                        line_start = verb.first;
+                        continue;
+                    }
                 }
+                line_start = msg.find("\n", line_start);
+                line_start = msg.find_first_not_of("\n", line_start);
             }
         }
 
@@ -4507,9 +4599,10 @@ string do_mon_str_replacements(const string &in_msg, const monster& mons,
         msg = replace_all(msg, "@The_monster@",   "Your @the_monster@");
     }
 
-    if (you.see_cell(mons.pos()))
+    const coord_def pos = mons.is_player_proxy() ? you.pos() : mons.pos();
+    if (you.see_cell(pos))
     {
-        dungeon_feature_type feat = env.grid(mons.pos());
+        dungeon_feature_type feat = env.grid(pos);
         if (feat_is_solid(feat) || feat >= NUM_FEATURES)
             msg = replace_all(msg, "@surface@", "buggy surface");
         else if (feat == DNGN_LAVA)
@@ -4521,7 +4614,7 @@ string do_mon_str_replacements(const string &in_msg, const monster& mons,
         else
             msg = replace_all(msg, "@surface@", "ground");
 
-        msg = replace_all(msg, "@feature@", raw_feature_description(mons.pos()));
+        msg = replace_all(msg, "@feature@", raw_feature_description(pos));
     }
     else
     {
@@ -4677,40 +4770,41 @@ string do_mon_str_replacements(const string &in_msg, const monster& mons,
 
     static const char * sound_list[] =
     {
-        "says",         // actually S_SILENT
-        "shouts",
-        "barks",
-        "howls",
-        "shouts",
-        "roars",
-        "screams",
-        "bellows",
-        "bleats",
-        "trumpets",
-        "screeches",
-        "buzzes",
-        "moans",
-        "gurgles",
-        "croaks",
-        "growls",
-        "hisses",
-        "sneers",       // S_DEMON_TAUNT
-        "says",         // S_CHERUB -- they just speak normally.
-        "squeals",
-        "roars",
-        "buggily says", // NUM_SHOUTS
-        "breathes",     // S_VERY_SOFT
-        "whispers",     // S_SOFT
-        "says",         // S_NORMAL
-        "shouts",       // S_LOUD
-        "screams",      // S_VERY_LOUD
+        "say",         // actually S_SILENT
+        "shout",
+        "bark",
+        "howl",
+        "shout",
+        "roar",
+        "scream",
+        "bellow",
+        "bleat",
+        "trumpet",
+        "screeche",
+        "buzze",
+        "moan",
+        "gurgle",
+        "croak",
+        "growl",
+        "hisse",
+        "sneer",       // S_DEMON_TAUNT
+        "say",         // S_CHERUB -- they just speak normally.
+        "squeal",
+        "roar",
+        "buggily say", // NUM_SHOUTS
+        "breathe",     // S_VERY_SOFT
+        "whisper",     // S_SOFT
+        "say",         // S_NORMAL
+        "shout",       // S_LOUD
+        "scream",      // S_VERY_LOUD
     };
     COMPILE_CHECK(ARRAYSZ(sound_list) == NUM_LOUDNESS);
 
     if (s_type < 0 || s_type >= NUM_LOUDNESS || s_type == NUM_SHOUTS)
     {
         mprf(MSGCH_DIAGNOSTICS, "Invalid @says@ type.");
-        msg = replace_all(msg, "@says@", "buggily says");
+        msg = replace_all(msg, "@says@",
+                            plural_subject ? "buggily say" : "buggily says");
     }
     else
         msg = replace_all(msg, "@says@", mons.conj_verb(sound_list[s_type]));
