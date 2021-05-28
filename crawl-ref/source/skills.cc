@@ -2059,6 +2059,11 @@ static bool _skill_needs_usable_hands(skill_type sk)
 static void _init_monster_skills()
 {
     ASSERT(you.species == SP_MONSTER && you.monster_instance);
+
+    // transformed bai suzhen keeps base apts
+    if (you.base_monster_instance && you.base_monster_instance->type == MONS_BAI_SUZHEN)
+        return;
+
     // reset to 0. TODO: reset to -1 instead?
     for (int sk = 0; sk < NUM_SKILLS; ++sk)
         _spec_skills[SP_MONSTER][sk] = 0;
@@ -2446,6 +2451,10 @@ void skill_state::restore_training()
 // Sanitize skills after an upgrade, racechange, etc.
 void fixup_skills()
 {
+    // risky, but I can't get this to work right
+    if (you.base_monster_instance)
+        return;
+
     for (skill_type sk = SK_FIRST_SKILL; sk < NUM_SKILLS; ++sk)
     {
         if (is_useless_skill(sk))

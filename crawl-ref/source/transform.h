@@ -124,7 +124,7 @@ public:
     virtual int res_cold() const;
     int res_neg() const;
     bool res_elec() const;
-    int res_pois() const;
+    virtual int res_pois() const;
     bool res_rot() const;
     bool res_acid() const;
     bool res_sticky_flame() const;

@@ -177,4 +177,6 @@ int mons_energy_to_delay(monster &m, energy_use_type et);
 void give_basic_mutations(mc_species species);
 void give_level_mutations(mc_species species, int xp_level);
 
-void change_species_to(mc_species sp);
+void specialize_species_to(monster_type mt);
+void despecialize_species();
+void change_species_to(mc_species sp, shared_ptr<monster> minstance = nullptr);

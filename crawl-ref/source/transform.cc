@@ -681,7 +681,8 @@ public:
 
     string get_transform_description() const override
     {
-        if (species::is_draconian(you.species))
+        if (species::is_draconian(you.species)
+                                || you.species == MONS_BAI_SUZHEN_DRAGON)
         {
             return make_stringf("a fearsome %s!",
                           mons_class_name(get_equivalent_mons()));
@@ -690,12 +691,22 @@ public:
             return description;
     }
 
+    string transform_message(transformation previous_trans) const override
+    {
+        if (you.species == MONS_BAI_SUZHEN_DRAGON) // already changed at this point
+            return "You roar in fury and transform into a fierce dragon!";
+        else
+            return Form::transform_message(previous_trans);
+    }
+
     /**
      * The AC bonus of the form, multiplied by 100 to match
      * player::armour_class().
      */
     int get_ac_bonus() const override
     {
+        if (you.species == MONS_BAI_SUZHEN_DRAGON)
+            return 0; // Use the dragon's base AC, which is 22
         if (species::is_draconian(you.species))
             return 1000;
         return Form::get_ac_bonus();
@@ -722,6 +733,8 @@ public:
      */
     int res_cold() const override
     {
+        if (you.species == MONS_BAI_SUZHEN_DRAGON)
+            return you.monster_instance->res_cold();
         switch (species::dragon_form(you.species))
         {
             case MONS_ICE_DRAGON:
@@ -731,6 +744,13 @@ public:
             default:
                 return 0;
         }
+    }
+
+    int res_pois() const override
+    {
+        if (you.species == MONS_BAI_SUZHEN_DRAGON)
+            return you.monster_instance->res_cold();
+        return Form::res_pois();
     }
 
     bool can_offhand_punch() const override { return true; }
@@ -1734,6 +1754,12 @@ bool transform(int pow, transformation which_trans, bool involuntary,
     if (!just_check && previous_trans != transformation::none)
         untransform(true);
 
+    // bai suzhen's transformation is implemented as a dual form + species
+    // change, so that the player inherits the abilities and traits of the
+    // monster version for the duration
+    if (you.species == MONS_BAI_SUZHEN && which_trans == transformation::dragon)
+        specialize_species_to(MONS_BAI_SUZHEN_DRAGON);
+
     set<equipment_type> rem_stuff = _init_equipment_removal(which_trans);
 
     // if going into lichform causes us to drop a holy weapon with consequences
@@ -1992,6 +2018,10 @@ void untransform(bool skip_move)
 
     // Must be unset first or else infinite loops might result. -- bwr
     const transformation old_form = you.form;
+
+    // turn bai suzhen's species type back to the draconian version
+    if (old_form == transformation::dragon && you.species == MONS_BAI_SUZHEN_DRAGON)
+        despecialize_species();
 
     quiver::set_needs_redraw();
     you.redraw_evasion          = true;

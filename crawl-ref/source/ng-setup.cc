@@ -561,7 +561,7 @@ void setup_monster_player(bool game_start)
     }
 
     // then we set up monster instance. This needs to be in place before
-    // giving the player any items from the monster.
+    // giving the player any items from the monster. Uses the copy constructor.
     you.monster_instance = make_shared<monster>(*tmp_mons);
     // TODO: 0,0 is not a great position for this, but everything else triggers
     // crashes when you try to do anything substantive with the monster.
@@ -575,7 +575,8 @@ void setup_monster_player(bool game_start)
             move_item_to_inv(i);
 
         // Finally, do the usual newgame stuff of wielding any weapons this has
-        // provide the player.
+        // provided to the player.
+        // TODO: skill training for these
         for (int slot = 0; slot < ENDOFPACK; ++slot)
         {
             item_def& item = you.inv[slot];
@@ -601,7 +602,7 @@ void setup_monster_player(bool game_start)
     // start flying creatures in the air
     if (you.racial_permanent_flight())
         you.attribute[ATTR_PERM_FLIGHT] = 1;
-    // TODO: unhandled flags: batty, confused, unblindable, blood scent, submerges, no_skeleton, web sense
+    // TODO: unhandled flags: batty, unblindable, blood scent, submerges, no_skeleton, web sense
 
     // some spell special cases
     if (you.species == MONS_DRACONIAN_STORMCALLER)

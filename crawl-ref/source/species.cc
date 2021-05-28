@@ -211,6 +211,9 @@ namespace species
     // XX non-draconians, unify with skin names?
     const char* scale_type(mc_species species)
     {
+        // TODO: other dragon species
+        if (species == MONS_BAI_SUZHEN_DRAGON)
+            return "glossy black";
         switch (species.genus())
         {
             case SP_RED_DRACONIAN:
@@ -241,9 +244,13 @@ namespace species
         if (s.is_genus_monster()
                         && mons_genus(s) == MONS_DRAGON)
         {
-            // TODO: or just disable dragon form in this case?
-            return s.mon_species;
+            // TODO: probably disable dragon form for most of these cases
+            return mons_species(s);
         }
+
+        // does this happen automatically?
+        if (s == MONS_BAI_SUZHEN)
+            return MONS_STORM_DRAGON;
 
         switch (s.genus())
         {
@@ -311,7 +318,8 @@ namespace species
                     || mons_intel(*you.monster_instance) <= I_ANIMAL)
                 // specific monsters that this is not flavorful on.
                 && species != MONS_ROYAL_JELLY
-                && species != MONS_DISSOLUTION)
+                && species != MONS_DISSOLUTION
+                && mons_genus(species) != MONS_DRAGON)
             {
                 // just some lore to explain why they can do things like open doors
                 // and maybe read
@@ -374,6 +382,9 @@ namespace species
             // generalize mummies
             if (you.monster_instance->res_poison() < 0)
                 result.push_back(terse ? "rPois-" : "You are vulnerable to poison.");
+
+            if (you.monster_instance->how_chaotic())
+                result.push_back(terse ? "chaotic" : "You are vulnerable to silver and hated by Zin.");
 
             // a bunch of energy-related things are implemented as fakemuts, plus
             // custom logic in player.cc. The only exception is movement speed,
@@ -923,7 +934,7 @@ void give_basic_mutations(mc_species species)
     if (species.is_monster() && you.monster_instance)
     {
         // use mod_imut if you only want to override for cases where a player
-        // species has not conttibuted.
+        // species has not contributed.
 #define set_imut(m, v) you.mutation[m] = you.innate_mutation[m] = (v)
 #define mod_imut(m, v) if (you.mutation[m] == 0) set_imut(m, v)
 
@@ -1095,6 +1106,25 @@ species_type mons_species_to_player_species(monster_type mons)
     return SP_MONSTER;
 }
 
+/// Change monster species to mt, saving the current one in base_monster_instance
+void specialize_species_to(monster_type mt)
+{
+    ASSERT(you.species.is_monster());
+    you.base_monster_instance = you.monster_instance;
+    // TODO: good or bad idea to use change_species_to? duplicate code with
+    // setup code?
+    change_species_to(mc_species(mt));
+}
+
+/// restore monster species from base_monster_instance
+void despecialize_species()
+{
+    ASSERT(you.base_monster_instance);
+    change_species_to(mc_species(you.base_monster_instance->type),
+        you.base_monster_instance);
+    you.base_monster_instance.reset();
+}
+
 /**
  * Change the player's species to something else.
  *
@@ -1105,25 +1135,48 @@ species_type mons_species_to_player_species(monster_type mons)
  *
  * @param sp the new species.
  */
-void change_species_to(mc_species sp)
+void change_species_to(mc_species sp, shared_ptr<monster> minstance)
 {
     ASSERT(sp.is_valid());
+    ASSERT(sp == SP_MONSTER || !minstance);
 
-    // Re-scale skill-points.
-    for (skill_type sk = SK_FIRST_SKILL; sk < NUM_SKILLS; ++sk)
-    {
-        you.skill_points[sk] *= species_apt_factor(sk, sp)
-                                / species_apt_factor(sk);
-    }
+    // TODO: kind of ugly
+    const bool temp_species = sp == MONS_BAI_SUZHEN_DRAGON
+                && you.base_monster_instance
+                && you.base_monster_instance->type == MONS_BAI_SUZHEN
+            || sp == MONS_BAI_SUZHEN && minstance
+                && minstance->type == MONS_BAI_SUZHEN;
+
+    // Monster apts get recalculated on species change, so we need to cache
+    // the old ones for a bit
+    map<skill_type, float> old_apt_factors;
+    // for temp species, just don't change apts. (TODO: does this work in
+    // general?)
+    if (!temp_species)
+        for (skill_type sk = SK_FIRST_SKILL; sk < NUM_SKILLS; ++sk)
+            old_apt_factors[sk] = species_apt_factor(sk);
 
     mc_species old_sp = you.species;
     you.species = sp;
-    you.chr_species_name = species::name(sp);
-    if (you.species == SP_MONSTER)
+    if (minstance)
+        you.monster_instance = minstance;
+    else if (you.species.is_monster())
         setup_monster_player(false); // reinit you.monster_instance
     else
         you.monster_instance.reset();
+    you.chr_species_name = species::name(sp);
 
+    // Re-scale skill-points. This has to be done here for monsters because
+    // the monster instance has to be correctly set up
+
+    if (!temp_species)
+        for (skill_type sk = SK_FIRST_SKILL; sk < NUM_SKILLS; ++sk)
+        {
+            you.skill_points[sk] = you.skill_points[sk] * species_apt_factor(sk)
+                                / old_apt_factors[sk];
+        }
+
+    // TODO: how to count these for bai suzhen?
     // reset monster-specific abilities; these will just produce weird
     // results across monsters -- there's no way to retrieve the correct
     // name after a species change
@@ -1133,7 +1186,6 @@ void change_species_to(mc_species sp)
         if (you.action_count.count(abilcount))
             you.action_count.erase(abilcount);
     }
-
 
     // Change permanent mutations, but preserve non-permanent ones.
     uint8_t prev_muts[NUM_MUTATIONS];
@@ -1190,17 +1242,23 @@ void change_species_to(mc_species sp)
 
     // FIXME: this checks only for valid slots, not for suitability of the
     // item in question. This is enough to make assertions happy, though.
-    for (int i = EQ_FIRST_EQUIP; i < NUM_EQUIP; ++i)
-        if (you_can_wear(static_cast<equipment_type>(i)) == MB_FALSE
-            && you.equip[i] != -1)
-        {
-            mprf("%s fall%s away.",
-                 you.inv[you.equip[i]].name(DESC_YOUR).c_str(),
-                 you.inv[you.equip[i]].quantity > 1 ? "" : "s");
-            // Unwear items without the usual processing.
-            you.equip[i] = -1;
-            you.melded.set(i, false);
-        }
+
+    // Bai Suzhen in dragon form melds equipment, not drops it. (Does this
+    // trip any asserts? This should only happen in combination with
+    // dragonform, so the melding code runs too.)
+    // TODO: does this handle other specialization cases ok?
+    if (!temp_species)
+        for (int i = EQ_FIRST_EQUIP; i < NUM_EQUIP; ++i)
+            if (you_can_wear(static_cast<equipment_type>(i)) == MB_FALSE
+                && you.equip[i] != -1)
+            {
+                mprf("%s fall%s away.",
+                     you.inv[you.equip[i]].name(DESC_YOUR).c_str(),
+                     you.inv[you.equip[i]].quantity > 1 ? "" : "s");
+                // Unwear items without the usual processing.
+                you.equip[i] = -1;
+                you.melded.set(i, false);
+            }
 
     // Sanitize skills.
     fixup_skills();

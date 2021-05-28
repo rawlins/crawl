@@ -344,6 +344,11 @@ mutation_activity_type mutation_activity_level(mutation_type mut)
             }
             if (mut == MUT_STINGER && drag == MONS_SWAMP_DRAGON)
                 return mutation_activity_type::FULL;
+            if ((mut == MUT_COLD_RESISTANCE || mut == MUT_POISON_RESISTANCE)
+                && you.species == MONS_BAI_SUZHEN_DRAGON)
+            {
+                return mutation_activity_type::FULL;
+            }
         }
         // Vampire bats keep their fangs.
         if (you.form == transformation::bat
@@ -698,6 +703,7 @@ static vector<string> _get_mutations(bool terse)
     vector<string> result;
 
     bool pois_printed = false;
+    bool hab_printed = false;
 
     // XX sort good and bad non-permanent mutations better? Comes up mostly for
     // vampires
@@ -727,7 +733,8 @@ static vector<string> _get_mutations(bool terse)
             if (!p.empty())
                 result.push_back(_formmut(p, terse));
 
-        if (you.form == transformation::dragon)
+        if (you.form == transformation::dragon
+            && you.species != MONS_BAI_SUZHEN_DRAGON) // bai suzhen gets primal wave
         {
             if (!species::is_draconian(you.species)
                 || you.species == SP_BASE_DRACONIAN) // ugh
@@ -748,9 +755,15 @@ static vector<string> _get_mutations(bool terse)
 
         // form-based flying can't be stopped, so don't print amphibiousness
         if (form->player_can_fly())
+        {
             result.push_back(terse ? "flying" : _formmut("You are flying."));
+            hab_printed = true;
+        }
         else if (form->player_can_swim() && !you.can_swim(true)) // n.b. this could cause issues for non-dragon giant forms if they exist
+        {
             result.push_back(terse ? "amphibious" : _formmut("You are amphibious."));
+            hab_printed = true;
+        }
 
         if (form->hp_mod > 10)
         {
@@ -900,7 +913,8 @@ static vector<string> _get_mutations(bool terse)
                                             : scales.c_str(),
                            ac),
                         player_is_shapechanged()
-                        && !(species::is_draconian(you.species)
+                        && !((species::is_draconian(you.species)
+                                || you.species == MONS_BAI_SUZHEN_DRAGON)
                              && you.form == transformation::dragon)));
         }
     }
@@ -908,7 +922,8 @@ static vector<string> _get_mutations(bool terse)
     // player::can_swim includes other cases, e.g. extra-balanced species that
     // are not truly amphibious. Mertail has its own description that implies
     // amphibiousness.
-    if (species::can_swim(you.species) && !you.has_innate_mutation(MUT_MERTAIL))
+    if (species::can_swim(you.species) && !you.has_innate_mutation(MUT_MERTAIL)
+        && !hab_printed)
     {
         result.push_back(_annotate_form_based(
                     terse ? "amphibious" : "You are amphibious.",

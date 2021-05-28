@@ -1013,6 +1013,13 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
             take_note(Note(NOTE_HP_CHANGE, you.hp, you.hp_max,
                            damage_desc.c_str()));
 
+            if (you.species == MONS_BAI_SUZHEN && you.hp < you.hp_max / 2)
+            {
+                // XX can this ever fail?
+                // Should power scale with xl? 30 is based on !lig
+                if (transform(30, transformation::dragon, true))
+                    return;
+            }
             _deteriorate(dam);
             _yred_mirrors_injury(dam, source);
             _maybe_ru_retribution(dam, source);

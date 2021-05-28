@@ -1756,8 +1756,13 @@ static void _tag_construct_you_items(writer &th)
         for (int j = 0; j < MAX_SUBTYPES; j++)
             marshallInt(th, you.force_autopickup[i][j]);
 
-    if (you.species == SP_MONSTER)
+    if (you.species.is_monster())
+    {
         marshallMonster(th, *you.monster_instance);
+        marshallBoolean(th, static_cast<bool>(you.base_monster_instance));
+        if (you.base_monster_instance)
+            marshallMonster(th, *you.base_monster_instance);
+    }
 }
 
 static void marshallPlaceInfo(writer &th, PlaceInfo place_info)
@@ -4235,7 +4240,13 @@ static void _tag_read_you_items(reader &th)
     if (you.species == SP_MONSTER)
     {
         you.monster_instance = make_shared<monster>();
+        you.base_monster_instance.reset();
         unmarshallMonster(th, *you.monster_instance);
+        if (unmarshallBoolean(th))
+        {
+            you.base_monster_instance = make_shared<monster>();
+            unmarshallMonster(th, *you.base_monster_instance);
+        }
     }
 }
 

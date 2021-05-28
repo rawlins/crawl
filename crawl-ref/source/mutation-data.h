@@ -188,7 +188,7 @@ static const mutation_def mut_data[] =
 
   {"You are resistant to electric shocks. (rElec)",
    "You are very resistant to electric shocks.",
-   "You are almost immune to electricity."},
+   "You are immune to electricity."},
   {"You feel insulated.", "", ""},
   {"You feel conductive.", "", ""},
 },

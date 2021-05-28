@@ -125,6 +125,8 @@ public:
 
     // for SP_MONSTER
     shared_ptr<monster> monster_instance;
+    // used by some complicated monsters
+    shared_ptr<monster> base_monster_instance;
 
     // This field is here even in non-WIZARD compiles, since the
     // player might have been playing previously under wiz mode.

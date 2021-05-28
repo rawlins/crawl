@@ -1493,8 +1493,10 @@ int player_res_electricity(bool calc_unid, bool temp, bool items)
             re++;
     }
 
-    if (re > 1 && you.species != SP_MONSTER)
-        re = 1;
+    if (you.species.is_monster())
+        re = min(re, 3);
+    else
+        re = min(re, 1);
 
     return re;
 }
@@ -5737,6 +5739,11 @@ int player::base_ac_from(const item_def &armour, int scale) const
 int player::racial_ac(bool temp) const
 {
     int base_racial_ac = 0;
+    // for bai suzhen just skip all this stuff. TODO: does it matter that this
+    // ignores temp?
+    if (species == MONS_BAI_SUZHEN_DRAGON && form == transformation::dragon)
+        return 100 * monster_instance->base_armour_class();
+
     // drac scales suppressed in all serious forms, except dragon
     if (species::is_draconian(species.genus())
         && (!player_is_shapechanged() || form == transformation::dragon
@@ -5757,7 +5764,8 @@ int player::racial_ac(bool temp) const
                        + 100 * max(0, experience_level - 7) * 2 / 5;
         }
     }
-    if (species == SP_MONSTER)
+
+    if (species == SP_MONSTER && (!temp || !player_is_shapechanged()))
     {
         // take the best of the two: if the monster has any ac, this overrides
         // the default 0. It also allows e.g. Vashnia to have better starting
@@ -6154,6 +6162,8 @@ bool player::is_nonliving(bool temp) const
 // which could be used for something Zin-related (such as a priestly monster).
 int player::how_chaotic(bool /*check_spells_god*/) const
 {
+    if (you.species.is_monster())
+        return you.monster_instance->how_chaotic(false);
     return 0;
 }
 
