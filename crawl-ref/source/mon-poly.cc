@@ -586,7 +586,9 @@ bool monster_polymorph(monster* mons, monster_type targetc,
     bool could_see = mons->is_player_proxy() || you.can_see(*mons);
     bool need_note = could_see && mons_is_notable(*mons) && !mons->is_player_proxy();
     string old_name_a = mons->full_name(DESC_A);
-    string old_name_the = mons->is_player_proxy() ? "you" : mons->full_name(DESC_THE);
+    string old_name_the = mons->is_player_proxy()
+        ? (you.hp > 0 ? "you" : "your lifeless corpse")
+        : mons->full_name(DESC_THE);
     monster_type oldc = mons->type;
 
     if (targetc == RANDOM_TOUGHER_MONSTER)

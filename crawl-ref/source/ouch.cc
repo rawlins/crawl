@@ -1138,6 +1138,10 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
         unwind_var<int> proxy_hp(you.monster_instance->hit_points, -1);
         if (mons_speaks(you.monster_instance.get()))
             needs_death_more = true;
+
+        // return shapeshifters to their base form
+        if (you.monster_instance->is_shapeshifter() && you.monster_instance->polymorph())
+            needs_death_more = true;
     }
 
 
