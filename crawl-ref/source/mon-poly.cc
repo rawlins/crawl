@@ -170,7 +170,8 @@ static bool _valid_morph(monster* mons, monster_type new_mclass)
     }
 
     // Determine if the monster is happy on current tile.
-    return monster_habitable_grid(new_mclass, env.grid(mons->pos()));
+    return monster_habitable_grid(new_mclass,
+                env.grid(mons->is_player_proxy() ? you.pos() : mons->pos()));
 }
 
 static bool _is_poly_power_unsuitable(poly_power_type power,
@@ -540,7 +541,9 @@ bool monster_polymorph(monster* mons, monster_type targetc,
     // for the monster class. By using the current hit dice
     // the player gets the opportunity to use draining more
     // effectively against shapeshifters. - bwr
-    source_power = mons->get_hit_dice();
+    source_power = mons->is_player_proxy()
+                            ? you.experience_level
+                            : mons->get_hit_dice();
     source_tier = mons_demon_tier(mons->type);
 
     // There's not a single valid target on the '&' demon tier, so unless we
@@ -557,7 +560,8 @@ bool monster_polymorph(monster* mons, monster_type targetc,
         do
         {
             // Pick a monster species that's guaranteed happy at this grid.
-            targetc = random_monster_at_grid(mons->pos(), true);
+            targetc = random_monster_at_grid(
+                    mons->is_player_proxy() ? you.pos() : mons->pos(), true);
 
             target_power = mons_power(targetc);
             // Can't compare tiers in valid_morph, since we want to affect only
@@ -579,10 +583,10 @@ bool monster_polymorph(monster* mons, monster_type targetc,
     if (targetc == RANDOM_POLYMORPH_MONSTER)
         targetc = _poly_from_set(mons);
 
-    bool could_see = you.can_see(*mons);
-    bool need_note = could_see && mons_is_notable(*mons);
+    bool could_see = mons->is_player_proxy() || you.can_see(*mons);
+    bool need_note = could_see && mons_is_notable(*mons) && !mons->is_player_proxy();
     string old_name_a = mons->full_name(DESC_A);
-    string old_name_the = mons->full_name(DESC_THE);
+    string old_name_the = mons->is_player_proxy() ? "you" : mons->full_name(DESC_THE);
     monster_type oldc = mons->type;
 
     if (targetc == RANDOM_TOUGHER_MONSTER)
@@ -609,7 +613,7 @@ bool monster_polymorph(monster* mons, monster_type targetc,
 
     change_monster_type(mons, targetc);
 
-    bool can_see = you.can_see(*mons);
+    bool can_see = mons->is_player_proxy() || you.can_see(*mons);
 
     // Messaging
     bool player_messaged = true;
@@ -625,13 +629,19 @@ bool monster_polymorph(monster* mons, monster_type targetc,
             obj = "";
         }
         else if (mons->is_shapeshifter())
-            verb = "changes into ";
+            verb = mons->is_player_proxy() ? "change into " : "changes into ";
         else if (_jiyva_slime_target(targetc))
             verb = "quivers uncontrollably and liquefies into ";
         else
             verb = "evaporates and reforms as ";
 
-        mprf("%s %s%s!", old_name_the.c_str(), verb.c_str(), obj.c_str());
+        // Ihe point of this channel for players is to put shapeshifter msging
+        // on something that is default runrest_ignore, so that resting works.
+        // (There's not otherwise a very obvious option.) It also gives it a
+        // nice purple color. TODO: could do something more fine-grained with
+        // lua code for monster species?
+        mprf(mons->is_player_proxy() ? MSGCH_FRIEND_ENCHANT : MSGCH_PLAIN,
+            "%s %s%s!", old_name_the.c_str(), verb.c_str(), obj.c_str());
     }
     else if (can_see)
     {

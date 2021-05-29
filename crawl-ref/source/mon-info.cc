@@ -662,8 +662,11 @@ monster_info::monster_info(const monster* m, int milev)
     if (testbits(m->flags, MF_ENSLAVED_SOUL))
         mb.set(MB_ENSLAVED);
 
-    if (m->is_shapeshifter() && (m->flags & MF_KNOWN_SHIFTER))
+    if (m->is_shapeshifter()
+        && (m->flags & MF_KNOWN_SHIFTER || m->is_player_proxy()))
+    {
         mb.set(MB_SHAPESHIFTER);
+    }
 
     if (m->known_chaos())
         mb.set(MB_CHAOTIC);

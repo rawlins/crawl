@@ -38,6 +38,9 @@ job_type get_job_by_abbrev(const char *abbrev)
 }
 
 // hacky...
+// we do this in jobs so that existing code (e.g. the main menu) that expects
+// to print jobs can do something useful here. Nonetheless this should maybe
+// be refactored...
 static string _monster_job_name;
 
 const char *get_job_name(job_type which_job)

@@ -479,6 +479,23 @@ void handle_time()
     if (!crawl_state.game_is_arena())
         _apply_contam_over_time();
 
+    if (you.species.is_monster() && you.monster_instance->is_shapeshifter()
+        && !you.confused() && !you.petrified() && !you.petrifying()
+        && !you.asleep() && !player_stair_delay())
+    {
+        // duplicates checks in mon-ench.cc
+        const int chance = you.monster_instance->has_ench(ENCH_GLOWING_SHAPESHIFTER)
+            ? 250
+            // this formula seems tuned weirdly, but we'll see how it goes
+            // for players. xl 1 it's around 333, xl 27 it's around 12.
+            : (1000 / (15 * max(1, you.experience_level) / 5));
+        if (x_chance_in_y(chance, 1000))
+        {
+            monster_polymorph(you.monster_instance.get(), RANDOM_MONSTER);
+            change_species_to(you.monster_instance->type, you.monster_instance);
+        }
+    }
+
     for (unsigned int i = 0; i < ARRAYSZ(timed_effects); i++)
     {
         if (crawl_state.game_is_arena() && !timed_effects[i].arena)

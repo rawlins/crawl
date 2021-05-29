@@ -1145,7 +1145,8 @@ void change_species_to(mc_species sp, shared_ptr<monster> minstance)
                 && you.base_monster_instance
                 && you.base_monster_instance->type == MONS_BAI_SUZHEN
             || sp == MONS_BAI_SUZHEN && minstance
-                && minstance->type == MONS_BAI_SUZHEN;
+                && minstance->type == MONS_BAI_SUZHEN
+            || minstance && minstance->is_shapeshifter();
 
     // Monster apts get recalculated on species change, so we need to cache
     // the old ones for a bit

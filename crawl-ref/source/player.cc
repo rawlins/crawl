@@ -8236,6 +8236,13 @@ string player::species_appellation(bool include_job, bool article) const
                     + " ";
         }
         r += get_job_name(you.char_class);
+        if (mons_genus(you.species) != MONS_SHAPESHIFTER)
+        {
+            if (you.monster_instance->has_ench(ENCH_GLOWING_SHAPESHIFTER))
+                r += " (glowing)";
+            else if (you.monster_instance->has_ench(ENCH_SHAPESHIFTER))
+                r += " (shifter)";
+        }
     }
     else
     {

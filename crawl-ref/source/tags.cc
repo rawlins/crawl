@@ -1366,7 +1366,17 @@ static void _tag_construct_char(writer &th)
     marshallByte(th, you.species.base);
     marshallByte(th, you.char_class);
     marshallByte(th, you.experience_level);
-    marshallString2(th, string(get_job_name(you.char_class)));
+
+    string job_name = get_job_name(you.char_class);
+    // manually add on shapeshifter so that it is visible in the save browser
+    if (you.monster_instance && mons_genus(you.species) != MONS_SHAPESHIFTER)
+    {
+        if (you.monster_instance->has_ench(ENCH_GLOWING_SHAPESHIFTER))
+            job_name += " (glowing shapeshifter)";
+        else if (you.monster_instance->has_ench(ENCH_SHAPESHIFTER))
+            job_name += " (shapeshifter)";
+    }
+    marshallString2(th, job_name);
     marshallByte(th, you.religion);
     marshallString2(th, you.jiyva_second_name);
 

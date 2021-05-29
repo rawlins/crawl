@@ -1668,6 +1668,7 @@ void monster::apply_enchantment(const mon_enchant &me)
         // an assert about it. -cao
         if (!(flags & MF_TAKING_STAIRS)
             && !(paralysed() || petrified() || petrifying() || asleep())
+            && !is_player_proxy()
             && (type == MONS_GLOWING_SHAPESHIFTER
                 || one_chance_in(4)))
         {
@@ -1678,6 +1679,7 @@ void monster::apply_enchantment(const mon_enchant &me)
     case ENCH_SHAPESHIFTER:         // This ench never runs out!
         if (!(flags & MF_TAKING_STAIRS)
             && !(paralysed() || petrified() || petrifying() || asleep())
+            && !is_player_proxy()
             && (type == MONS_SHAPESHIFTER
                 || x_chance_in_y(1000 / (15 * max(1, get_hit_dice()) / 5),
                                  1000)))

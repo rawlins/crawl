@@ -2077,9 +2077,18 @@ static string _overview_screen_title(int sw)
         monster_info mi(you.monster_instance.get());
         get_monster_db_desc(mi, inf, has_stat_desc);
 
-        if (inf.title.size() > 1 && starts_with(inf.title, "A "))
+        if (starts_with(inf.title, "A ") || starts_with(inf.title, "An "))
             inf.title[0] = 'a';
         text += inf.title;
+
+        // annoyingly, does not seem to be handled at all in mon-info
+        if (mons_genus(you.species) != MONS_SHAPESHIFTER
+            && you.monster_instance->has_ench(ENCH_GLOWING_SHAPESHIFTER))
+        {
+            if (text.size() > 0 && text[text.size() - 1] == '.')
+                text.pop_back();
+            text += " (glowing).";
+        }
         text += "</yellow>\n";
     }
 
