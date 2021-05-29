@@ -37,10 +37,14 @@ job_type get_job_by_abbrev(const char *abbrev)
     return JOB_UNKNOWN;
 }
 
-// hacky...
+// hacky...monsters always have a special job JOB_MONSTER, and can't take
+// regular player backgrounds. Use the job name code to instead print their
+// monster name.
+
 // we do this in jobs so that existing code (e.g. the main menu) that expects
 // to print jobs can do something useful here. Nonetheless this should maybe
-// be refactored...
+// be refactored, it originates from the very earliest monstercrawl
+// implementation...
 static string _monster_job_name;
 
 const char *get_job_name(job_type which_job)
@@ -52,6 +56,8 @@ const char *get_job_name(job_type which_job)
     {
         if (you.monster_instance)
             _monster_job_name = you.monster_instance->full_name(DESC_PLAIN);
+        else if (you.species != SP_MONSTER)
+            return "Ex-Monster"; // can happen only with wizmode species change
         else
         {
             _monster_job_name = uppercase_first(

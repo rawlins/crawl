@@ -5237,7 +5237,10 @@ bool player_save_info::operator<(const player_save_info& rhs) const
 string player_save_info::really_short_desc() const
 {
     ostringstream desc;
-    desc << name << " the " << species_name << ' ' << class_name;
+    desc << name << " the ";
+    if (species_name != "Monster")
+        desc << species_name << ' ';
+    desc << class_name;
 
     return desc.str();
 }
@@ -5252,8 +5255,11 @@ string player_save_info::short_desc(bool use_qualifier) const
     if (!qualifier.empty())
         desc << "[" << qualifier << "] ";
 
-    desc << name << ", a level " << experience_level << ' '
-         << species_name << ' ' << class_name;
+    desc << name << ", a level " << experience_level << ' ';
+    if (species_name != "Monster")
+        desc << species_name << ' ';
+
+    desc << class_name;
 
     if (religion == GOD_JIYVA)
         desc << " of " << god_name << " " << jiyva_second_name;
