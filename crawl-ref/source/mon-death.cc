@@ -2529,7 +2529,7 @@ item_def* mounted_kill(monster* daddy, monster_type mc, killer_type killer,
 {
     monster mon;
     mon.type = mc;
-    mon.moveto(daddy->pos());
+    mon.moveto(daddy->is_player_proxy() ? you.pos() : daddy->pos());
     define_monster(mon); // assumes mc is not a zombie
     mon.flags = daddy->flags;
 

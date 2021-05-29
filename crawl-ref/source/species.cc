@@ -5,6 +5,7 @@
 #include "species.h"
 
 #include "chardump.h"
+#include "database.h"
 #include "describe.h"
 #include "item-prop.h"
 #include "mon-util.h"
@@ -81,6 +82,55 @@ namespace species
         else if (spname_type == SPNAME_ADJ && def.adj_name)
             return def.adj_name;
         return def.name;
+    }
+
+    string player_monster_name(bool full_desc)
+    {
+        if (you.species != SP_MONSTER)
+            return "";
+        else if (!you.monster_instance) // XX is this actually used?
+            return mons_type_name(you.species.mon_species, DESC_PLAIN);
+
+        string r;
+        const bool ex_rider = you.base_monster_instance
+            && you.base_monster_instance->type == MONS_SPRIGGAN_RIDER;
+        const monster_type shapeshifter =
+              you.monster_instance->has_ench(ENCH_GLOWING_SHAPESHIFTER)
+            ? MONS_GLOWING_SHAPESHIFTER
+            : you.monster_instance->has_ench(ENCH_SHAPESHIFTER)
+            ? MONS_SHAPESHIFTER
+            : MONS_PROGRAM_BUG; // 0
+
+        if (full_desc)
+        {
+            // includes an article
+            monster_info mi(you.monster_instance.get());
+
+            r = getMiscString(mi.common_name(DESC_DBNAME) + " title");
+            if (r.empty())
+                r = lowercase_first(mi.full_name(DESC_A));
+            // not tracked for monster, but we do want it for player:
+            if (ex_rider)
+                r += " ex-rider";
+            // shifters will get "an X shaped shifter" here, but annoyingly,
+            // glowiness does not seem to be handled in monster_info at all:
+            if (shapeshifter == MONS_GLOWING_SHAPESHIFTER && you.species != shapeshifter)
+                r += " (glowing)";
+        }
+        else
+        {
+            // TODO: in previous versions, we added "Monstrous" here for things
+            // that could be confused with player species. Is this still
+            // helpful?
+
+            r += you.monster_instance->full_name(DESC_PLAIN);
+            if (ex_rider)
+                r += " ex-rider";
+            // XX can a shapeshifter turn into a spriggan rider and then die?
+            if (shapeshifter && you.species != shapeshifter)
+                r += shapeshifter == MONS_SHAPESHIFTER ? " (shifter)" : " (glowing)";
+        }
+        return r;
     }
 
     /// Does exact case-sensitive lookup of a species name

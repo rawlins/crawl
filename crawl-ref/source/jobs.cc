@@ -41,7 +41,7 @@ job_type get_job_by_abbrev(const char *abbrev)
 // regular player backgrounds. Use the job name code to instead print their
 // monster name.
 
-// we do this in jobs so that existing code (e.g. the main menu) that expects
+// we do this in jobs so that existing code (e.g. player_save_info) that expects
 // to print jobs can do something useful here. Nonetheless this should maybe
 // be refactored, it originates from the very earliest monstercrawl
 // implementation...
@@ -54,15 +54,11 @@ const char *get_job_name(job_type which_job)
 
     if (which_job == JOB_MONSTER)
     {
-        if (you.monster_instance)
-            _monster_job_name = you.monster_instance->full_name(DESC_PLAIN);
-        else if (you.species != SP_MONSTER)
+        if (you.species != SP_MONSTER)
             return "Ex-Monster"; // can happen only with wizmode species change
         else
-        {
-            _monster_job_name = uppercase_first(
-                        mons_type_name(you.species.mon_species, DESC_PLAIN));
-        }
+            _monster_job_name = species::player_monster_name(false);
+
         return _monster_job_name.c_str();
     }
 

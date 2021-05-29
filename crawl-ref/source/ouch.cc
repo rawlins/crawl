@@ -1150,11 +1150,26 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
 
         you.deaths++;
         bool bennu_msg = false;
+        bool semi_death = false;
         if (you.species == MONS_BENNU)
         {
             bennu_msg = true;
-            explode_monster(you.monster_instance.get(), KILL_YOU, // ?
+            explode_monster(you.monster_instance.get(), KILL_MISC, // ?
                 false, false);
+        }
+        else if (you.species == MONS_SPRIGGAN_RIDER)
+        {
+            // TODO: this always converts to a spriggan, in contrast to the
+            // monster version, which has a conflip between spriggan and
+            // hornet. Would that coinflip be too obnoxious?
+
+            // place the hornet corpse
+            mounted_kill(you.monster_instance.get(), MONS_HORNET, KILL_MISC, // ?
+                source);
+            // we keep the original rider around for flavor purposes, to
+            // differentiate this from a regular spriggan
+            specialize_species_to(MONS_SPRIGGAN);
+            semi_death = true;
         }
 
         // not supposed to be used for Boris, but let's keep the value sane
@@ -1169,13 +1184,15 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
         if (!crawl_state.disables[DIS_SAVE_CHECKPOINTS])
             save_game(false);
 
-        canned_msg(MSG_YOU_DIE);
+        if (!semi_death)
+            canned_msg(MSG_YOU_DIE);
         xom_death_message((kill_method_type) se.get_death_type());
         if (bennu_msg)
             mpr("You have become mortal.");
         more();
 
-        _place_player_corpse(death_type == KILLED_BY_DISINT);
+        if (!semi_death)
+            _place_player_corpse(death_type == KILLED_BY_DISINT);
         return;
     }
 
@@ -1183,7 +1200,7 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
     {
         // cosmetic for players, but a lurking horror (etc) can at least take
         // something down with it
-        explode_monster(you.monster_instance.get(), KILL_YOU, // ?
+        explode_monster(you.monster_instance.get(), KILL_MISC, // ?
             false, false);
         // lurking horror triggers immediately
         if (you.species != MONS_LURKING_HORROR)

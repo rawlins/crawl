@@ -596,7 +596,7 @@ void setup_monster_player(bool game_start)
         }
     }
 
-    if (you.species == MONS_BENNU)
+    if (you.species == MONS_BENNU || you.species == MONS_SPRIGGAN_RIDER)
         you.lives = 1;
 
     // start flying creatures in the air

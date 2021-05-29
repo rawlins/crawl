@@ -486,6 +486,13 @@ void revive()
         ouch(INSTANT_DEATH, KILLED_BY_DRAINING);
     }
 
-    mpr("You rejoin the land of the living...");
+    if (you.base_monster_instance
+        && you.base_monster_instance->type == MONS_SPRIGGAN_RIDER)
+    {
+        // duplicates messaging in monster.cc:react_to_damage
+        mpr("You fall from your now dead mount.");
+    }
+    else
+        mpr("You rejoin the land of the living...");
     // included in default force_more_message
 }

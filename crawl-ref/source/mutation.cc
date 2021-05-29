@@ -1088,16 +1088,7 @@ string describe_mutations(bool drop_title)
         bool has_stat_desc = false;
         monster_info mi(you.monster_instance.get());
 
-        string title = getMiscString(mi.common_name(DESC_DBNAME) + " title");
-        if (title.empty())
-            title = lowercase_first(mi.full_name(DESC_A));
-
-        // annoyingly, does not seem to be handled at all in mon-info
-        if (mons_genus(you.species) != MONS_SHAPESHIFTER
-            && you.monster_instance->has_ench(ENCH_GLOWING_SHAPESHIFTER))
-        {
-            title += " (glowing)";
-        }
+        string title = species::player_monster_name(true);
 
         const auto g = you.species.genus();
         if (g != SP_MONSTER && species::to_mons_species(g) != you.species

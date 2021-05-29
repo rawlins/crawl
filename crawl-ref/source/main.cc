@@ -1039,7 +1039,13 @@ static void _input()
     if (you.pending_revival)
     {
         revive();
-        bring_to_safety();
+        // Should spriggan riders get rescued? Right now this is inconsistent
+        // between them and bennu.
+        if (!you.base_monster_instance
+            || you.base_monster_instance->type != MONS_SPRIGGAN_RIDER)
+        {
+            bring_to_safety();
+        }
         redraw_screen();
         update_screen();
     }

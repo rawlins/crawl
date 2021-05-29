@@ -2067,28 +2067,7 @@ static string _overview_screen_title(int sw)
     if (you.species == SP_MONSTER)
     {
         text += "<yellow>You are ";
-        bool has_stat_desc = false;
-        describe_info inf;
-        formatted_string desc;
-        // keep the description code from inserting `your` for names beginning
-        // with `the`.
-        unwind_var<mon_attitude_type> tmp_att(you.monster_instance->attitude,
-                                                                ATT_HOSTILE);
-        monster_info mi(you.monster_instance.get());
-        get_monster_db_desc(mi, inf, has_stat_desc);
-
-        if (starts_with(inf.title, "A ") || starts_with(inf.title, "An "))
-            inf.title[0] = 'a';
-        text += inf.title;
-
-        // annoyingly, does not seem to be handled at all in mon-info
-        if (mons_genus(you.species) != MONS_SHAPESHIFTER
-            && you.monster_instance->has_ench(ENCH_GLOWING_SHAPESHIFTER))
-        {
-            if (text.size() > 0 && text[text.size() - 1] == '.')
-                text.pop_back();
-            text += " (glowing).";
-        }
+        text += species::player_monster_name(true);
         text += "</yellow>\n";
     }
 
@@ -2367,7 +2346,10 @@ static vector<formatted_string> _get_overview_stats()
 
     if (you.has_mutation(MUT_MULTILIVED)
         || you.species == MONS_BENNU
-        || you.species == MONS_BORIS)
+        || you.species == MONS_BORIS
+        || you.species == MONS_SPRIGGAN_RIDER
+        || you.base_monster_instance
+                && you.base_monster_instance->type == MONS_SPRIGGAN_RIDER)
     {
         entry.textcolour(HUD_CAPTION_COLOUR);
         entry.cprintf("Lives:  ");

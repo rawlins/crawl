@@ -5237,7 +5237,9 @@ bool player_save_info::operator<(const player_save_info& rhs) const
 string player_save_info::really_short_desc() const
 {
     ostringstream desc;
-    desc << name << " the ";
+    desc << name << " ";
+    if (!starts_with(species_name, "the "))
+        desc << "the ";
     if (species_name != "Monster")
         desc << species_name << ' ';
     desc << class_name;
@@ -5254,12 +5256,25 @@ string player_save_info::short_desc(bool use_qualifier) const
                     : "";
     if (!qualifier.empty())
         desc << "[" << qualifier << "] ";
+    desc << name << ", ";
 
-    desc << name << ", a level " << experience_level << ' ';
+    // For "the Enchantress", etc, print "the level X Enchantress", not
+    // "a level X the Enchantress".
+    // TODO: improve on proper names? (Currently: Plog, a level 1 Bai Suzhen)
+    string chopped_class_name = class_name;
+    if (starts_with(class_name, "the "))
+    {
+        chopped_class_name = chopped_class_name.substr(4);
+        desc << "the ";
+    }
+    else
+        desc << "a ";
+
+    desc << "level " << experience_level << ' ';
     if (species_name != "Monster")
         desc << species_name << ' ';
 
-    desc << class_name;
+    desc << chopped_class_name;
 
     if (religion == GOD_JIYVA)
         desc << " of " << god_name << " " << jiyva_second_name;
@@ -8217,43 +8232,24 @@ string player::hands_act(const string &plural_verb,
     return "Your " + hands_verb(plural_verb) + (space ? " " : "") + object;
 }
 
+// use when in normal crawl, "Species Job" is appropriate
+// XX refactor out of existence?
 string player::species_appellation(bool include_job, bool article) const
 {
-    if (you.species.mon_species == MONS_LERNAEAN_HYDRA
-            || you.species.mon_species == MONS_ROYAL_JELLY
-            || you.species.mon_species == MONS_THE_ENCHANTRESS
-            || you.species.mon_species == MONS_SERPENT_OF_HELL
-            || mons_species(you.species.mon_species) == MONS_SERPENT_OF_HELL)
-    {
-        // just use `the X`
-        // is there a better way to get the article here??
-        return get_job_name(you.char_class);
-    }
     string r;
-    if (you.species.is_monster())
+    // these species already come with articles
+    if (article && !(you.species == MONS_LERNAEAN_HYDRA
+                    || you.species == MONS_ROYAL_JELLY
+                    || you.species == MONS_THE_ENCHANTRESS
+                    || you.species == MONS_SERPENT_OF_HELL
+                    || ::mons_species(you.species) == MONS_SERPENT_OF_HELL))
     {
-        if (article)
-            r += "the ";
-        if (article && mons_is_unique(you.species.mon_species)
-            // Always add `monstrous` when there is potential confusion
-            || species::is_player_species_equiv(you.species))
-        {
-            r += lowercase_first(species::name(you.species, species::SPNAME_ADJ))
-                    + " ";
-        }
-        r += get_job_name(you.char_class);
-        if (mons_genus(you.species) != MONS_SHAPESHIFTER)
-        {
-            if (you.monster_instance->has_ench(ENCH_GLOWING_SHAPESHIFTER))
-                r += " (glowing)";
-            else if (you.monster_instance->has_ench(ENCH_SHAPESHIFTER))
-                r += " (shifter)";
-        }
+        r += "the ";
     }
+    if (you.species.is_monster())
+        r += species::player_monster_name(false);
     else
     {
-        if (article)
-            r += "the ";
         r += species::name(you.species);
         if (include_job)
             r = r + " " + get_job_name(you.char_class);

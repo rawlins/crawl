@@ -111,6 +111,7 @@ namespace species
     species_type from_str(const string &species);
     species_type from_str_loose(const string &species_str,
                                                     bool initial_only = false);
+    string player_monster_name(bool full_desc=false);
 
     bool is_elven(mc_species species);
     bool is_orcish(mc_species species);
