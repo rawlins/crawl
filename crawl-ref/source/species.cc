@@ -1264,8 +1264,8 @@ void change_species_to(mc_species sp, shared_ptr<monster> minstance)
     // Sanitize skills.
     fixup_skills();
 
-    calc_hp();
-    calc_mp();
+    calc_hp(true, false);
+    calc_mp(true);
 
     // The player symbol depends on species.
     update_player_symbol();
