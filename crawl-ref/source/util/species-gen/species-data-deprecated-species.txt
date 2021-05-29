@@ -34,6 +34,7 @@
     nullptr,
     nullptr
 } },
+#endif
 
 { SP_HIGH_ELF, {
     "HE",
@@ -52,4 +53,3 @@
     nullptr,
     nullptr
 } },
-#endif

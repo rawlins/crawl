@@ -1,4 +1,3 @@
-#if TAG_MAJOR_VERSION == 34
     {SP_HIGH_ELF,        SK_FIGHTING,        0},
     {SP_HIGH_ELF,        SK_SHORT_BLADES,    2},
     {SP_HIGH_ELF,        SK_LONG_BLADES,     2},
@@ -13,14 +12,20 @@
     {SP_HIGH_ELF,        SK_ARMOUR,         -1},
     {SP_HIGH_ELF,        SK_DODGING,         1},
     {SP_HIGH_ELF,        SK_STEALTH,         2},
+#if TAG_MAJOR_VERSION == 34
     {SP_HIGH_ELF,        SK_STABBING,      UNUSABLE_SKILL},
+#endif
     {SP_HIGH_ELF,        SK_SHIELDS,        -1},
+#if TAG_MAJOR_VERSION == 34
     {SP_HIGH_ELF,        SK_TRAPS,         UNUSABLE_SKILL},
+#endif
     {SP_HIGH_ELF,        SK_UNARMED_COMBAT, -2},
     {SP_HIGH_ELF,        SK_SPELLCASTING,    1},
     {SP_HIGH_ELF,        SK_CONJURATIONS,    1},
     {SP_HIGH_ELF,        SK_HEXES,           0},
+#if TAG_MAJOR_VERSION == 34
     {SP_HIGH_ELF,        SK_CHARMS,        UNUSABLE_SKILL},
+#endif
     {SP_HIGH_ELF,        SK_SUMMONINGS,     -1},
     {SP_HIGH_ELF,        SK_NECROMANCY,     -2},
     {SP_HIGH_ELF,        SK_TRANSLOCATIONS,  1},
@@ -32,6 +37,7 @@
     {SP_HIGH_ELF,        SK_POISON_MAGIC,   -2},
     {SP_HIGH_ELF,        SK_INVOCATIONS,     1},
     {SP_HIGH_ELF,        SK_EVOCATIONS,      0},
+#if TAG_MAJOR_VERSION == 34
     {SP_SLUDGE_ELF,      SK_FIGHTING,        1},
     {SP_SLUDGE_ELF,      SK_SHORT_BLADES,   -1},
     {SP_SLUDGE_ELF,      SK_LONG_BLADES,    -1},
