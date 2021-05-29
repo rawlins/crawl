@@ -2,6 +2,7 @@
 
 #include "ng-setup.h"
 
+#include "ability.h"
 #include "adjust.h"
 #include "dungeon.h"
 #include "end.h"
@@ -576,24 +577,71 @@ void setup_monster_player(bool game_start)
 
         // Finally, do the usual newgame stuff of wielding any weapons this has
         // provided to the player.
-        // TODO: skill training for these
+        // set up some skill levels based on these items
+        // TODO: magic skills? does it matter?
+        set<skill_type> item_sks;
+        int fighting = -1;
+        bool found_armour = false;
         for (int slot = 0; slot < ENDOFPACK; ++slot)
         {
             item_def& item = you.inv[slot];
             if (item.defined())
+            {
                 _newgame_setup_item(item, slot);
+                item_skills(item, item_sks);
+
+                // armour not handled by item_skills except for shields?
+                if (item.base_type == OBJ_ARMOUR
+                    && get_armour_slot(item) == EQ_BODY_ARMOUR)
+                {
+                    if (property(item, PARM_AC) > 3) // med-heavy body armour
+                        item_sks.insert(SK_ARMOUR);
+                    else // robe, hide, leather
+                        item_sks.insert(SK_DODGING);
+                    found_armour = true;
+                }
+
+                if (is_weapon(item))
+                    fighting++;
+            }
+        }
+
+        for (auto sk : item_sks)
+            you.skills[sk]++;
+
+        if (mons_class_itemuse(you.species) < MONUSE_STARTING_EQUIPMENT)
+        {
+            fighting++;
+            you.skills[SK_UNARMED_COMBAT] += 2;
+        }
+        // TODO: where is the extra 1 point coming from?
+        if (fighting > 0)
+            you.skills[SK_FIGHTING] += fighting;
+
+        if (!found_armour)
+        {
+            you.skills[SK_DODGING]++;
+            you.skills[SK_STEALTH]++;
         }
 
         // religion
         // conditioning this on is_priest is a little too quirky; for example
         // dissolution is a priest but TRJ is not.
-        if (you.monster_instance->deity() <= NUM_GODS)
+        const god_type mons_god = you.monster_instance->deity();
+        if (mons_god > GOD_NO_GOD && mons_god < NUM_GODS)
         {
             // TODO: nameless gods?? choose randomly? or maybe use monk behavior?
-            you.religion = you.monster_instance->deity();
-            you.piety = 38;
             // init gift timeout? lugonu in abyss?
+            you.religion = you.monster_instance->deity();
+            you.piety = 38; // zealot piety start
+
+            // not sure this is necessary, but it is based on lugonu
+            if (invo_skill(you.religion) != SK_NONE)
+                you.skills[invo_skill(you.religion)]++;
         }
+        // unclear whether this matters or is a good idea:
+        if (you.monster_instance->spells.size() > 0)
+            you.skills[SK_SPELLCASTING]++;
     }
 
     if (you.species == MONS_BENNU || you.species == MONS_SPRIGGAN_RIDER)
