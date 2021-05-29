@@ -2143,10 +2143,12 @@ static void _init_monster_skills()
     // the draconian principle: resistance == affinity
     // TODO: maybe take monster spells into account?
     // These are applied to player species as well, so that e.g. hell knights
-    // get a fire magic boost. (TODO: maybe halve the effect for these cases?)
+    // get a fire magic boost.
 
     if (holiness & (MH_EVIL | MH_DEMONIC | MH_UNDEAD))
         _spec_skills[SP_MONSTER][SK_NECROMANCY] += 1;
+    else if (holiness & MH_HOLY) // or maybe the *do* have a necro affinity, and just choose not to use it?
+        _spec_skills[SP_MONSTER][SK_NECROMANCY] -= 2;
     else if (holiness & MH_NATURAL)
         _spec_skills[SP_MONSTER][SK_NECROMANCY] -= 1;
 
