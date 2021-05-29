@@ -709,10 +709,29 @@ public:
 
     bool effect(bool = true, int = 40, bool = true) const override
     {
+        // some monster species just can't be mutated
+        if (!you.can_mutate())
+        {
+            mpr("You feel momentarily strange.");
+            return false;
+        }
+
         if (have_passive(passive_t::cleanse_mut_potions))
             simple_god_message(" cleanses your potion of mutation!");
         else
             mpr("You feel extremely strange.");
+
+        // if a monster species has a custom malmutate effect, apply it here
+        if (you.species.is_monster() &&
+            // TODO: is there a way not to have to duplicate this list here?
+            (you.species == MONS_UGLY_THING
+                || you.species == MONS_VERY_UGLY_THING
+                || you.species == MONS_ABOMINATION_SMALL
+                || you.species == MONS_ABOMINATION_LARGE))
+        {
+            return you.malmutate("potion of mutation");
+        }
+
         bool mutated = false;
         int remove_mutations = random_range(MIN_REMOVED, MAX_REMOVED);
         int add_mutations = random_range(MIN_ADDED, MAX_ADDED);

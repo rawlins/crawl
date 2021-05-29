@@ -93,14 +93,21 @@ void boris_covet_orb(monster* boris)
 
 bool ugly_thing_mutate(monster& ugly, bool force)
 {
+    // TODO: this won't trigger for friendly ugly things, why? Maybe it is
+    // conditioned on foe?
     if (!(one_chance_in(9) || force))
         return false;
 
-    const char* msg = nullptr;
+    const bool proxy = ugly.is_player_proxy();
+    string msg;
     // COLOUR_UNDEF means "pick a random colour".
     colour_t new_colour = COLOUR_UNDEF;
 
-    for (fair_adjacent_iterator ai(ugly.pos()); ai && !msg; ++ai)
+    const coord_def pos = proxy ? you.pos() : ugly.pos();
+
+    // the extra arg to ai here lets a player ugly thing react to their own
+    // mutagenic energy. TODO: maybe move elsewhere?
+    for (fair_adjacent_iterator ai(pos, !proxy); ai && msg.empty(); ++ai)
     {
         const actor* act = actor_at(*ai);
 
@@ -108,24 +115,40 @@ bool ugly_thing_mutate(monster& ugly, bool force)
             continue;
 
         if (act->is_player() && get_contamination_level())
-            msg = " basks in your mutagenic energy and changes!";
-        else if (mons_genus(act->type) == MONS_UGLY_THING)
+            msg = "in your mutagenic energy";
+        else if (mons_genus(act->type) == MONS_UGLY_THING
+            || act->is_player()
+                && !proxy && mons_genus(you.species) == MONS_UGLY_THING)
         {
-            msg = " basks in the mutagenic energy from its kin and changes!";
-            const colour_t other_colour =
-                make_low_colour(act->as_monster()->colour);
+            msg = "in the mutagenic energy from ";
+            if (proxy)
+                msg += "your kin";
+            else if (act->is_player())
+                msg += "you"; // TODO kind of awkward
+            else
+                msg += "its kin";
+            const colour_t other_colour = make_low_colour(
+                act->is_player()
+                    ? you.monster_instance->colour
+                    : act->as_monster()->colour);
             if (make_low_colour(ugly.colour) != other_colour)
                 new_colour = other_colour;
         }
     }
 
     if (force)
-        msg = " basks in the mutagenic energy and changes!";
+        msg = "in the mutagenic energy";
 
-    if (!msg) // didn't find anything to mutate off of
+    if (msg.empty()) // didn't find anything to mutate off of
         return false;
 
-    simple_monster_message(ugly, msg);
+    if (proxy)
+        mprf("You bask %s and change!", msg.c_str());
+    else
+    {
+        msg = make_stringf(" basks in %s and changes!", msg.c_str());
+        simple_monster_message(ugly, msg.c_str());
+    }
     ugly.uglything_mutate(new_colour);
     return true;
 }
@@ -836,7 +859,8 @@ bool mon_special_ability(monster* mons)
     // Slime creatures can split while out of sight.
     if ((!mons->near_foe() || mons->asleep() || mons->submerged())
          && mons->type != MONS_SLIME_CREATURE
-         && mons->type != MONS_LOST_SOUL)
+         && mons->type != MONS_LOST_SOUL
+         && !mons->is_player_proxy())
     {
         return false;
     }

@@ -4626,6 +4626,8 @@ void monster::uglything_mutate(colour_t force_colour)
 {
     ghost->init_ugly_thing(type == MONS_VERY_UGLY_THING, true, force_colour);
     uglything_init(true);
+    if (is_player_proxy())
+        change_species_to(type, you.monster_instance); // reinit mutations etc
 }
 
 // Randomise potential damage.
@@ -5292,6 +5294,9 @@ bool monster::malmutate(const string &/*reason*/)
     {
 #ifdef USE_TILE
         props[TILE_NUM_KEY].get_short() = ui_random(256);
+        // is there an easier way to force the tile to redraw?
+        if (is_player_proxy())
+            change_species_to(type, you.monster_instance);
 #endif
         return true;
     }
@@ -5302,6 +5307,9 @@ bool monster::malmutate(const string &/*reason*/)
         ugly_thing_mutate(*this);
         return true;
     }
+
+    if (is_player_proxy())
+        return false; // don't do anything to the actual player monster
 
     simple_monster_message(*this, " twists and deforms.");
     add_ench(mon_enchant(ENCH_WRETCHED, 1));
@@ -5343,10 +5351,18 @@ bool monster::polymorph(poly_power_type power)
 
     // Polymorphing a shapeshifter will make it revert to its original
     // form.
-    if (has_ench(ENCH_GLOWING_SHAPESHIFTER))
-        return monster_polymorph(this, MONS_GLOWING_SHAPESHIFTER, power);
-    if (has_ench(ENCH_SHAPESHIFTER))
-        return monster_polymorph(this, MONS_SHAPESHIFTER, power);
+    if (is_shapeshifter())
+    {
+        bool shifted = false; // can these actually fail?
+        if (has_ench(ENCH_GLOWING_SHAPESHIFTER))
+            shifted = monster_polymorph(this, MONS_GLOWING_SHAPESHIFTER, power);
+        else if (has_ench(ENCH_SHAPESHIFTER))
+            shifted = monster_polymorph(this, MONS_SHAPESHIFTER, power);
+        // monster_polymorph won't run the species change code on its own
+        if (shifted && is_player_proxy())
+            change_species_to(type, you.monster_instance);
+        return shifted;
+    }
 
     // Polymorphing a slime creature will usually split it first
     // and polymorph each part separately.

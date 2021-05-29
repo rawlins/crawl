@@ -452,6 +452,10 @@ namespace species
             if (mons_class_flag(you.species, M_INVIS) && !terse)
                 result.push_back("You are permanently invisible.");
 
+            // move to describe_mutations?
+            if (!you.can_mutate())
+                result.push_back(terse ? "genetically immutable" : "You cannot be mutated.");
+
             // species-specific stuff
             if (species == MONS_SILENT_SPECTRE)
                 result.push_back(terse ? "silence" : "You are surrounded by an aura of silence.");

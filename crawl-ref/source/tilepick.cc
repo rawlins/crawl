@@ -1939,6 +1939,8 @@ static tileidx_t _tileidx_monster_no_props(const monster_info& mon)
 tileidx_t tileidx_monster(const monster_info& mons)
 {
     tileidx_t ch = _tileidx_monster_no_props(mons);
+    if (mons.player_proxy)
+        return ch;
 
     if ((!mons.ground_level() && !_tentacle_tile_not_flying(ch)))
         ch |= TILE_FLAG_FLYING;

@@ -1834,7 +1834,10 @@ bool mutate(mutation_type which_mutation, const string &reason, bool failMsg,
                 return false;
             // fallthrough to normal mut
         case MUTCLASS_NORMAL:
-            mprf(MSGCH_MUTATION, "Your body decomposes!");
+            if (you.is_insubstantial())
+                mprf(MSGCH_MUTATION, "Your insubstantial form fades slightly!");
+            else
+                mprf(MSGCH_MUTATION, "Your body decomposes!");
             lose_stat(STAT_RANDOM, 1);
             return true;
         case MUTCLASS_INNATE:

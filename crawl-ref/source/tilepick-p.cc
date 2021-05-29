@@ -9,6 +9,7 @@
 #include "describe.h"
 #include "item-name.h"
 #include "item-prop.h"
+#include "mon-info.h"
 #include "player.h"
 #include "tile-flags.h"
 #include "tile-player-flag-cut.h"
@@ -461,8 +462,16 @@ tileidx_t tileidx_player()
 {
     tileidx_t ch = TILEP_PLAYER;
 
-    if (you.species.is_monster())
-        ch = tileidx_monster_base(you.species.mon_species, 0);
+    if (you.species == SP_MONSTER)
+    {
+        if (you.monster_instance)
+        {
+            monster_info mi(you.monster_instance.get());
+            ch = tileidx_monster(mi);
+        }
+        else
+            ch = tileidx_monster_base(you.species.mon_species, 0);
+    }
 
     // Handle shapechange first
     switch (you.form)

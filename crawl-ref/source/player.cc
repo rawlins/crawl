@@ -7116,6 +7116,16 @@ void player::backlight()
 
 bool player::can_mutate() const
 {
+    // this fn doesn't really mean "can mutate" -- rather, it is whether the
+    // mutation code should run on this player, which will cover things like
+    // undead rotting
+    // TODO: is this right? lots of cases to check...
+    if (you.species.is_monster())
+    {
+        return you.monster_instance->can_mutate()
+            || undead_state(false) == US_UNDEAD   // all undead rot when malmutated
+            || you.species.genus() != SP_MONSTER; // all player genuses can mutate
+    }
     return true;
 }
 
@@ -7130,6 +7140,11 @@ bool player::can_safely_mutate(bool temp) const
 {
     if (!can_mutate())
         return false;
+
+    // XX do these really have to be listed?
+    // (here mainly so that potions of mutation are drinkable)
+    if (you.species == MONS_ABOMINATION_SMALL || you.species == MONS_ABOMINATION_LARGE)
+        return true;
 
     return undead_state(temp) == US_ALIVE
            || undead_state(temp) == US_SEMI_UNDEAD;
@@ -7146,7 +7161,18 @@ bool player::is_lifeless_undead(bool temp) const
 
 bool player::can_polymorph() const
 {
-    return !(transform_uncancellable || is_lifeless_undead());
+    if (transform_uncancellable)
+        return false;
+
+    // some duplication with monster::can_polymorph here
+    if (you.species == MONS_CHAOS_SPAWN)
+        return true;
+
+    // does this overdo it?
+    if (you.species.is_monster() && !you.monster_instance->can_polymorph())
+        return false;
+
+    return !is_lifeless_undead();
 }
 
 bool player::can_bleed(bool temp) const
@@ -7183,6 +7209,11 @@ bool player::malmutate(const string &reason)
     if (!can_mutate())
         return false;
 
+    // see if monster behavior should preempt regular player mutation code, e.g.
+    // ugly things
+    if (you.species.is_monster() && you.monster_instance->malmutate(reason))
+        return true;
+
     const mutation_type mut_quality = one_chance_in(5) ? RANDOM_MUTATION
                                                        : RANDOM_BAD_MUTATION;
     if (mutate(mut_quality, reason))
@@ -7199,6 +7230,13 @@ bool player::polymorph(int pow, bool allow_immobile)
 
     if (!can_polymorph())
         return false;
+
+    // TODO: slime creature poly
+    if (you.monster_instance && you.monster_instance->is_shapeshifter()
+        || mons_genus(you.species) == MONS_UGLY_THING)
+    {
+        return you.monster_instance->polymorph(pow);
+    }
 
     transformation f = transformation::none;
 

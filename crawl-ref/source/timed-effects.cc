@@ -30,6 +30,7 @@
 #include "message.h"
 #include "mgen-data.h"
 #include "monster.h"
+#include "mon-abil.h"
 #include "mon-behv.h"
 #include "mon-death.h"
 #include "mon-pathfind.h"
@@ -495,6 +496,10 @@ void handle_time()
             change_species_to(you.monster_instance->type, you.monster_instance);
         }
     }
+
+    // TODO: run all special abilities?
+    if (you.species == MONS_UGLY_THING || you.species == MONS_VERY_UGLY_THING)
+        mon_special_ability(you.monster_instance.get());
 
     for (unsigned int i = 0; i < ARRAYSZ(timed_effects); i++)
     {
