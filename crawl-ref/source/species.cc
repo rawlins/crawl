@@ -364,16 +364,16 @@ namespace species
 
         if (species.is_monster() && you.monster_instance)
         {
-            if ((mons_class_itemuse(species) <= MONUSE_OPEN_DOORS
-                    || mons_intel(*you.monster_instance) <= I_ANIMAL)
+            if (mons_intel(*you.monster_instance) <= I_ANIMAL
                 // specific monsters that this is not flavorful on.
-                && species != MONS_ROYAL_JELLY
-                && species != MONS_DISSOLUTION
-                && mons_genus(species) != MONS_DRAGON)
+                && species != MONS_ROYAL_JELLY // brainless
+                && mons_genus(species) != MONS_DRAGON) // animal int
             {
                 // just some lore to explain why they can do things like open doors
                 // and maybe read
-                result.push_back(terse ? "uplifted" : "You are unnaturally intelligent for one of your kind.");
+                result.push_back(terse ?
+                    "uplifted" :
+                    "You are unnaturally intelligent for one of your kind.");
             }
 
             if (you.heads() != 1)
@@ -1087,33 +1087,144 @@ void give_level_mutations(mc_species species, int xp_level)
 
 void species_stat_init(mc_species species)
 {
-    if (species.is_monster() && you.monster_instance)
+    // first set base values
+    if (!species.is_monster() || species.genus() != SP_MONSTER)
     {
-        //non-player genus
+        // player species and player genus species, use preset values
+        you.base_stats[STAT_INT] = get_species_def(species.genus()).i;
+        you.base_stats[STAT_STR] = get_species_def(species.genus()).s;
+        you.base_stats[STAT_DEX] = get_species_def(species.genus()).d;
+    }
+    else
+    {
+        // base int derived from monster intelligence
         if (mons_intel(*you.monster_instance) == I_BRAINLESS)
             you.base_stats[STAT_INT] = -1; // lowest possible value
-        else if (mons_class_itemuse(you.species) < MONUSE_OPEN_DOORS)
-        {
-            // example: worker ant
-            you.base_stats[STAT_INT] = 1;
-        }
         else if (mons_class_itemuse(you.species) == MONUSE_OPEN_DOORS
             || mons_intel(*you.monster_instance) == I_ANIMAL)
         {
-            // example: howler monkey
             you.base_stats[STAT_INT] = 3;
-        }
-        else
-            you.base_stats[STAT_INT] = 8; // TODO: boosts in some cases? casters?
-    }
-    else
-        you.base_stats[STAT_INT] = get_species_def(species).i;
 
-    // TODO: how to decide on str/dex for monsters?
-    // heuristic: larger animals should be strong
-    // more?
-    you.base_stats[STAT_STR] = get_species_def(species).s;
-    you.base_stats[STAT_DEX] = get_species_def(species).d;
+            // monster-only modifiers
+            if (mons_class_itemuse(you.species) > MONUSE_NOTHING)
+                you.base_stats[STAT_INT] += 1; // example: howler monkey
+
+            switch (mons_genus(you.species))
+            {
+            // a few things that seem like they should be smarter
+            case MONS_HOUND:
+            case MONS_HOG:
+            case MONS_ELEPHANT:
+            case MONS_BEAR:
+            case MONS_DRAGON:
+                you.base_stats[STAT_INT] += 1;
+                break;
+            // and a few things that seem like they should be dumber
+            case MONS_SCORPION:
+            case MONS_SPIDER:
+            case MONS_WORM:
+            case MONS_ELEPHANT_SLUG:
+            case MONS_KILLER_BEE:
+            case MONS_VAMPIRE_MOSQUITO:
+            case MONS_HORNET:
+            case MONS_MOTH:
+            case MONS_GIANT_COCKROACH:
+                you.base_stats[STAT_INT] -= 1;
+            default:
+                break;
+            }
+        }
+        else // I_HUMAN
+        {
+            you.base_stats[STAT_INT] = 8; // TODO: boosts in some more cases?
+            if (mons_class_flag(you.species, M_SPEAKS))
+                you.base_stats[STAT_INT] += 2;
+        }
+        // strength/dex come primarily from size
+        // TODO: is this any good?
+        switch (you.monster_instance->body_size(PSIZE_TORSO))
+        {
+        case SIZE_TINY:
+            you.base_stats[STAT_STR] = 0;
+            you.base_stats[STAT_DEX] = 8;
+            break;
+        case SIZE_LITTLE:
+            you.base_stats[STAT_STR] = 1;
+            you.base_stats[STAT_DEX] = 6;
+            break;
+        case SIZE_SMALL:
+            you.base_stats[STAT_STR] = 2;
+            you.base_stats[STAT_DEX] = 4;
+            break;
+        case SIZE_MEDIUM:
+            you.base_stats[STAT_STR] = 3;
+            you.base_stats[STAT_DEX] = 3;
+            break;
+        case SIZE_LARGE:
+            you.base_stats[STAT_STR] = 4;
+            you.base_stats[STAT_DEX] = 2;
+            break;
+        case SIZE_BIG:
+            you.base_stats[STAT_STR] = 6;
+            you.base_stats[STAT_DEX] = 1;
+            break;
+        case SIZE_GIANT:
+            you.base_stats[STAT_STR] = 8;
+            you.base_stats[STAT_DEX] = 0;
+            break;
+        default:
+            break;
+        }
+    }
+
+    // modifiers that can apply to player genus monsters as well
+    if (you.species.is_monster())
+    {
+        // not very fine-grained:
+        if (you.monster_instance->spells.size() > 0)
+            you.base_stats[STAT_INT] += 1;
+
+        if (you.monster_instance->has_attack_flavour(AF_TRAMPLE))
+            you.base_stats[STAT_STR] += 2;
+
+        // maybe remove, redundant with trample
+        if (mons_class_flag(you.species, M_CRASH_DOORS))
+            you.base_stats[STAT_STR] += 1;
+
+        if (you.species == MONS_DEEP_ELF_BLADEMASTER)
+            you.base_stats[STAT_DEX] += 2; // blademasters get dex, not str
+        else if (mons_class_flag(you.species, M_TWO_WEAPONS))
+            you.base_stats[STAT_STR] += 1;
+
+        // does this actually make sense?
+        if (mons_class_flag(you.species, M_BATTY))
+            you.base_stats[STAT_DEX] += 2;
+        else if (mons_class_flag(you.species, M_FLIES))
+            you.base_stats[STAT_DEX] += 1;
+
+        // would it make sense to use speed and or ev to impact dex?
+
+        // monsters whose flavor text implies bonus strength/dex:
+        if (you.species == MONS_ETTIN
+            || you.species == MONS_LINDWURM
+            || you.species == MONS_WOLF
+            || you.species == MONS_WAR_GARGOYLE)
+        {
+            you.base_stats[STAT_STR] += 1;
+        }
+        if (mons_genus(you.species) == MONS_SNAKE)
+            you.base_stats[STAT_DEX] += 1;
+
+        if (you.species == MONS_SONJA)
+            you.base_stats[STAT_DEX] += 2;
+
+        // and the reverse:
+        if (you.species == MONS_SALAMANDER_MYSTIC)
+        {
+            you.base_stats[STAT_STR] -= 1;
+            you.base_stats[STAT_DEX] -= 1;
+        }
+    }
 }
 
 void species_stat_gain(mc_species species)
