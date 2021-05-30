@@ -54,6 +54,8 @@ typedef set<skill_type> skill_set;
 
 string skill_names(const skill_set &skills);
 
+map<skill_type,int> get_species_skill_apt(species_type sp);
+
 int skill_cost_baseline();
 int one_level_cost(skill_type sk);
 float scaled_skill_cost(skill_type sk);

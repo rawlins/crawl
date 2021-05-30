@@ -18,6 +18,7 @@
 #include "player-stats.h"
 #include "random.h"
 #include "skills.h"
+#include "species-monster.h"
 #include "stringutil.h"
 #include "tag-version.h"
 #include "tiledoll.h"
@@ -82,55 +83,6 @@ namespace species
         else if (spname_type == SPNAME_ADJ && def.adj_name)
             return def.adj_name;
         return def.name;
-    }
-
-    string player_monster_name(bool full_desc)
-    {
-        if (you.species != SP_MONSTER)
-            return "";
-        else if (!you.monster_instance) // XX is this actually used?
-            return mons_type_name(you.species.mon_species, DESC_PLAIN);
-
-        string r;
-        const bool ex_rider = you.base_monster_instance
-            && you.base_monster_instance->type == MONS_SPRIGGAN_RIDER;
-        const monster_type shapeshifter =
-              you.monster_instance->has_ench(ENCH_GLOWING_SHAPESHIFTER)
-            ? MONS_GLOWING_SHAPESHIFTER
-            : you.monster_instance->has_ench(ENCH_SHAPESHIFTER)
-            ? MONS_SHAPESHIFTER
-            : MONS_PROGRAM_BUG; // 0
-
-        if (full_desc)
-        {
-            // includes an article
-            monster_info mi(you.monster_instance.get());
-
-            r = getMiscString(mi.common_name(DESC_DBNAME) + " title");
-            if (r.empty())
-                r = lowercase_first(mi.full_name(DESC_A));
-            // not tracked for monster, but we do want it for player:
-            if (ex_rider)
-                r += " ex-rider";
-            // shifters will get "an X shaped shifter" here, but annoyingly,
-            // glowiness does not seem to be handled in monster_info at all:
-            if (shapeshifter == MONS_GLOWING_SHAPESHIFTER && you.species != shapeshifter)
-                r += " (glowing)";
-        }
-        else
-        {
-            // TODO: in previous versions, we added "Monstrous" here for things
-            // that could be confused with player species. Is this still
-            // helpful?
-
-            r += you.monster_instance->full_name(DESC_PLAIN);
-            if (ex_rider)
-                r += " ex-rider";
-            // XX can a shapeshifter turn into a spriggan rider and then die?
-            if (shapeshifter && you.species != shapeshifter)
-                r += shapeshifter == MONS_SHAPESHIFTER ? " (shifter)" : " (glowing)";
-        }
-        return r;
     }
 
     /// Does exact case-sensitive lookup of a species name
@@ -363,119 +315,7 @@ namespace species
         vector<string> result;
 
         if (species.is_monster() && you.monster_instance)
-        {
-            if (mons_intel(*you.monster_instance) <= I_ANIMAL
-                // specific monsters that this is not flavorful on.
-                && species != MONS_ROYAL_JELLY // brainless
-                && mons_genus(species) != MONS_DRAGON) // animal int
-            {
-                // just some lore to explain why they can do things like open doors
-                // and maybe read
-                result.push_back(terse ?
-                    "uplifted" :
-                    "You are unnaturally intelligent for one of your kind.");
-            }
-
-            if (you.heads() != 1)
-                result.push_back(terse ? make_stringf("%d heads", you.heads()) : make_stringf("You have %d heads.", you.heads()));
-
-            if (!terse)
-            {
-                // sort of hacky...
-                // TODO: this is pretty clumsy for multi-attack monsters
-                const auto attacks = monster_attacks_description(monster_info(you.monster_instance.get()));
-                for (auto &a : split_string("\n", attacks))
-                    result.push_back(a);
-            }
-            else if (mons_class_flag(species, M_ACID_SPLASH))
-                result.push_back("acid splash");  // TODO: a ton of other attack flavors?
-
-            // Only juggernaut has custom values for this, but many monsters will
-            // have an attack speed modifier based on their base speed.
-            const int attack_delay = mons_energy_to_delay(*you.monster_instance, EUT_ATTACK);
-            if (attack_delay > 18)
-                result.push_back(terse ? "very slow attacks" : "You attack very slowly.");
-            else if (attack_delay > 10)
-                result.push_back(terse ? "slow attacks" : "You attack slowly.");
-            else if (attack_delay < 5)
-                result.push_back(terse ? "very quick attacks" : "You attack very quickly.");
-            else if (attack_delay < 10)
-                result.push_back(terse ? "quick attacks" : "You attack quickly.");
-
-            // spell energy: only orb spider has a custom value for this
-            // TODO: maybe this should just apply to special species abilities?
-            const int move_delay = mons_energy_to_delay(*you.monster_instance, EUT_MOVE);
-            const int spell_delay = mons_energy_to_delay(*you.monster_instance, EUT_SPELL);
-            if (spell_delay > move_delay)
-                result.push_back(terse ? "slow casting" : "You cast spells slowly.");
-            else if (spell_delay < move_delay)
-                result.push_back(terse ? "quick casting" : "You cast spells quickly.");
-
-            if (!you.has_mutation(MUT_NO_GRASPING))
-            {
-                // only DE master archer has a custom value for this, but some monsters
-                // may gain this by having a higher base speed.
-                const int missile_delay = mons_energy_to_delay(*you.monster_instance, EUT_MISSILE);
-                if (missile_delay > 10)
-                    result.push_back(terse ? "slow shooting" : "You fire missiles slowly.");
-                else if (missile_delay < 10)
-                    result.push_back(terse ? "quick shooting" : "You fire missiles quickly.");
-            }
-
-            // TODO: is there a better way to check for no rings at all?
-            // reconcile with mutation.cc ring mut code?
-            if (you_can_wear(EQ_RING_ONE) == MB_FALSE && you_can_wear(EQ_RIGHT_RING) == MB_FALSE)
-                result.push_back(terse ? "no rings" : "You cannot wear rings.");
-            // right now, everything can wear an amulet, somehow
-            // TODO: a bit more variation in ring possibilities
-
-            // generalize mummies
-            if (you.monster_instance->res_poison() < 0)
-                result.push_back(terse ? "rPois-" : "You are vulnerable to poison.");
-
-            if (you.monster_instance->how_chaotic())
-                result.push_back(terse ? "chaotic" : "You are vulnerable to silver and hated by Zin.");
-
-            // a bunch of energy-related things are implemented as fakemuts, plus
-            // custom logic in player.cc. The only exception is movement speed,
-            // which is mapped on to the fast/slow muts.
-            const int swim_delay = mons_energy_to_delay(*you.monster_instance, EUT_SWIM);
-            if (swim_delay < move_delay)
-                result.push_back(terse ? "fast swimming" : "You swim quickly.");
-            else if (swim_delay > move_delay)
-                result.push_back(terse ? "slow swimming" : "You swim slowly.");
-
-            if (mons_class_flag(you.species, M_CONFUSED))
-                result.push_back(terse ? "confused" : "You are permanently confused.");
-
-            // invis is already shown as a status
-            if (mons_class_flag(you.species, M_INVIS) && !terse)
-                result.push_back("You are permanently invisible.");
-
-            // move to describe_mutations?
-            if (!you.can_mutate())
-                result.push_back(terse ? "genetically immutable" : "You cannot be mutated.");
-
-            // species-specific stuff
-            if (species == MONS_SILENT_SPECTRE)
-                result.push_back(terse ? "silence" : "You are surrounded by an aura of silence.");
-            if (species == MONS_ELEMENTAL_WELLSPRING)
-                result.push_back(terse ? "watery" : "You exude water.");
-            else if (species == MONS_WATER_NYMPH)
-                result.push_back(terse ? "flood" : "You exude a watery aura.");
-            else if (species == MONS_TORPOR_SNAIL)
-                result.push_back(terse ? "slowing aura" : "Your aura slows creatures around you.");
-            else if (species == MONS_ANCIENT_ZYME)
-                result.push_back(terse ? "sickening aura" : "Your aura sickens creatures around you.");
-            else if (species == MONS_ASMODEUS)
-                result.push_back(terse ? "flames" : "You are wreathed in flames.");
-            else if (species == MONS_GUARDIAN_GOLEM)
-                result.push_back(terse ? "injury bond" : "You share your allies injuries.");
-            else if (species == MONS_SHADOW_DRAGON) // no good realmut for this
-                result.push_back(terse ? "shadowy" : "Your umbral scales blend in with the shadows (Stealth++++).");
-
-            return result;
-        }
+            result = monster_fake_mutations(species, terse);
 
         if (!species.is_genus_monster())
         {
@@ -986,97 +826,12 @@ void give_basic_mutations(mc_species species)
             you.mutation[lum.mut] = you.innate_mutation[lum.mut] = lum.mut_level;
 
     if (species.is_monster() && you.monster_instance)
-    {
-        // use mod_imut if you only want to override for cases where a player
-        // species has not contributed.
-#define set_imut(m, v) you.mutation[m] = you.innate_mutation[m] = (v)
-#define mod_imut(m, v) if (you.mutation[m] == 0) set_imut(m, v)
-
-        if (mons_class_itemuse(species) < MONUSE_STARTING_EQUIPMENT)
-        {
-            // use the felid muts for this
-            // TODO: right now no weapons entails no throwing, should this always
-            // be so? Some weird monsters seem like they could probably throw,
-            // even though they don't.
-            set_imut(MUT_NO_ARMOUR, 1);
-            set_imut(MUT_NO_GRASPING, 1);
-        }
-
-        // let this override base, e.g. for DE variants
-        if (you.monster_instance->can_see_invisible())
-            set_imut(MUT_ACUTE_VISION, 1);
-
-        // TODO: how to handle Ds variants?
-        if (mons_class_flag(you.species, M_COLD_BLOOD))
-            set_imut(MUT_COLD_BLOODED, 1);
-        if (mons_class_flag(you.species, M_FAST_REGEN))
-            set_imut(MUT_REGENERATION, 1);
-        if (mons_class_flag(you.species, M_NO_REGEN))
-            set_imut(MUT_NO_REGENERATION, 1);
-        if (mons_class_flag(you.species, M_SPINY))
-            set_imut(MUT_SPINY, 1);
-
-        int resist = you.monster_instance->res_negative_energy(true);
-        // vulnerabilities?
-        if (resist > 0)
-            mod_imut(MUT_NEGATIVE_ENERGY_RESISTANCE, resist);
-        set_imut(MUT_TORMENT_RESISTANCE, you.monster_instance->res_torment());
-        // TODO: resists: tornado, constrict
-        set_imut(MUT_PETRIFICATION_RESISTANCE,
-                                         you.monster_instance->res_petrify());
-        set_imut(MUT_ACID_RESISTANCE, you.monster_instance->res_acid());
-        set_imut(MUT_SHOCK_RESISTANCE, you.monster_instance->res_elec());
-        // TODO: immunity for these where appropriate?
-        resist = you.monster_instance->res_fire();
-        if (resist < 0)
-            set_imut(MUT_HEAT_VULNERABILITY, -resist);
-        else
-            mod_imut(MUT_HEAT_RESISTANCE, resist);
-        resist = you.monster_instance->res_cold();
-        if (resist < 0)
-            set_imut(MUT_COLD_VULNERABILITY, -resist);
-        else
-            mod_imut(MUT_COLD_RESISTANCE, resist);
-        // TODO: poison vulnerability
-        resist = you.monster_instance->res_poison();
-        // negative poison resistance is handled as a fakemut
-        if (resist > 0)
-            set_imut(MUT_POISON_RESISTANCE, resist);
-
-        // Would it be better to handle these as a fakemut?
-        const int base_speed = mons_energy_to_delay(*you.monster_instance,
-                                                                    EUT_MOVE);
-        if (base_speed < 10)
-        {
-            ASSERT(base_speed > 0);
-            // convert monster speed into levels of the fast mutation. This is
-            // a bit coarser than monsters, and requires more levels than 3.
-            // For example, a speed 30 bat ends up with a level 8 mut, leading
-            // to a move delay of 3aut. It is least accurate for slightly fast
-            // monsters: e.g. an ugly thing ends up with an 8aut move delay
-            // instead of a 9.
-            set_imut(MUT_FAST, 10 - base_speed);
-        }
-        else if (base_speed > 10)
-        {
-            // do something a little simpler and hacky for speed. There aren't
-            // a lot of slow monsters, and the slow mutation is multiplicative
-            // unlike monster energy calcs; this mostly gets the
-            // correspondences about right except for very slightly slow
-            // monsters
-            set_imut(MUT_SLOW, (base_speed + 1) / 2 - 5);
-              // base_speed >= 18 ? 4 // basically just gastronok
-              //                  : base_speed >= 16 ? 3
-              //                  : base_speed >= 14 ? 2
-              //                  : 1);
-        }
-#undef set_imut
-#undef mod_imut
-    }
+        species::give_basic_monster_mutations(species);
 }
 
 void give_level_mutations(mc_species species, int xp_level)
 {
+    // TODO: are levelup muts init'd for monsters??
     for (const auto& lum : get_species_def(species).level_up_mutations)
         if (lum.xp_level == xp_level)
         {
@@ -1087,144 +842,15 @@ void give_level_mutations(mc_species species, int xp_level)
 
 void species_stat_init(mc_species species)
 {
-    // first set base values
-    if (!species.is_monster() || species.genus() != SP_MONSTER)
+    if (species.is_monster())
     {
-        // player species and player genus species, use preset values
-        you.base_stats[STAT_INT] = get_species_def(species.genus()).i;
-        you.base_stats[STAT_STR] = get_species_def(species.genus()).s;
-        you.base_stats[STAT_DEX] = get_species_def(species.genus()).d;
-    }
-    else
-    {
-        // base int derived from monster intelligence
-        if (mons_intel(*you.monster_instance) == I_BRAINLESS)
-            you.base_stats[STAT_INT] = -1; // lowest possible value
-        else if (mons_class_itemuse(you.species) == MONUSE_OPEN_DOORS
-            || mons_intel(*you.monster_instance) == I_ANIMAL)
-        {
-            you.base_stats[STAT_INT] = 3;
-
-            // monster-only modifiers
-            if (mons_class_itemuse(you.species) > MONUSE_NOTHING)
-                you.base_stats[STAT_INT] += 1; // example: howler monkey
-
-            switch (mons_genus(you.species))
-            {
-            // a few things that seem like they should be smarter
-            case MONS_HOUND:
-            case MONS_HOG:
-            case MONS_ELEPHANT:
-            case MONS_BEAR:
-            case MONS_DRAGON:
-                you.base_stats[STAT_INT] += 1;
-                break;
-            // and a few things that seem like they should be dumber
-            case MONS_SCORPION:
-            case MONS_SPIDER:
-            case MONS_WORM:
-            case MONS_ELEPHANT_SLUG:
-            case MONS_KILLER_BEE:
-            case MONS_VAMPIRE_MOSQUITO:
-            case MONS_HORNET:
-            case MONS_MOTH:
-            case MONS_GIANT_COCKROACH:
-                you.base_stats[STAT_INT] -= 1;
-            default:
-                break;
-            }
-        }
-        else // I_HUMAN
-        {
-            you.base_stats[STAT_INT] = 8; // TODO: boosts in some more cases?
-            if (mons_class_flag(you.species, M_SPEAKS))
-                you.base_stats[STAT_INT] += 2;
-        }
-        // strength/dex come primarily from size
-        // TODO: is this any good?
-        switch (you.monster_instance->body_size(PSIZE_TORSO))
-        {
-        case SIZE_TINY:
-            you.base_stats[STAT_STR] = 0;
-            you.base_stats[STAT_DEX] = 8;
-            break;
-        case SIZE_LITTLE:
-            you.base_stats[STAT_STR] = 1;
-            you.base_stats[STAT_DEX] = 6;
-            break;
-        case SIZE_SMALL:
-            you.base_stats[STAT_STR] = 2;
-            you.base_stats[STAT_DEX] = 4;
-            break;
-        case SIZE_MEDIUM:
-            you.base_stats[STAT_STR] = 3;
-            you.base_stats[STAT_DEX] = 3;
-            break;
-        case SIZE_LARGE:
-            you.base_stats[STAT_STR] = 4;
-            you.base_stats[STAT_DEX] = 2;
-            break;
-        case SIZE_BIG:
-            you.base_stats[STAT_STR] = 6;
-            you.base_stats[STAT_DEX] = 1;
-            break;
-        case SIZE_GIANT:
-            you.base_stats[STAT_STR] = 8;
-            you.base_stats[STAT_DEX] = 0;
-            break;
-        default:
-            break;
-        }
+        species::monster_stat_init(species);
+        return;
     }
 
-    // modifiers that can apply to player genus monsters as well
-    if (you.species.is_monster())
-    {
-        // not very fine-grained:
-        if (you.monster_instance->spells.size() > 0)
-            you.base_stats[STAT_INT] += 1;
-
-        if (you.monster_instance->has_attack_flavour(AF_TRAMPLE))
-            you.base_stats[STAT_STR] += 2;
-
-        // maybe remove, redundant with trample
-        if (mons_class_flag(you.species, M_CRASH_DOORS))
-            you.base_stats[STAT_STR] += 1;
-
-        if (you.species == MONS_DEEP_ELF_BLADEMASTER)
-            you.base_stats[STAT_DEX] += 2; // blademasters get dex, not str
-        else if (mons_class_flag(you.species, M_TWO_WEAPONS))
-            you.base_stats[STAT_STR] += 1;
-
-        // does this actually make sense?
-        if (mons_class_flag(you.species, M_BATTY))
-            you.base_stats[STAT_DEX] += 2;
-        else if (mons_class_flag(you.species, M_FLIES))
-            you.base_stats[STAT_DEX] += 1;
-
-        // would it make sense to use speed and or ev to impact dex?
-
-        // monsters whose flavor text implies bonus strength/dex:
-        if (you.species == MONS_ETTIN
-            || you.species == MONS_LINDWURM
-            || you.species == MONS_WOLF
-            || you.species == MONS_WAR_GARGOYLE)
-        {
-            you.base_stats[STAT_STR] += 1;
-        }
-        if (mons_genus(you.species) == MONS_SNAKE)
-            you.base_stats[STAT_DEX] += 1;
-
-        if (you.species == MONS_SONJA)
-            you.base_stats[STAT_DEX] += 2;
-
-        // and the reverse:
-        if (you.species == MONS_SALAMANDER_MYSTIC)
-        {
-            you.base_stats[STAT_STR] -= 1;
-            you.base_stats[STAT_DEX] -= 1;
-        }
-    }
+    you.base_stats[STAT_STR] = get_species_def(species).s;
+    you.base_stats[STAT_INT] = get_species_def(species).i;
+    you.base_stats[STAT_DEX] = get_species_def(species).d;
 }
 
 void species_stat_gain(mc_species species)
@@ -1327,7 +953,7 @@ void change_species_to(mc_species sp, shared_ptr<monster> minstance)
     if (minstance)
         you.monster_instance = minstance;
     else if (you.species.is_monster())
-        setup_monster_player(false); // reinit you.monster_instance
+        species::setup_monster_player(false); // reinit you.monster_instance
     else
         you.monster_instance.reset();
     you.chr_species_name = species::name(sp);

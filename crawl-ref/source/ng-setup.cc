@@ -25,6 +25,7 @@
 #include "religion.h"
 #include "shopping.h"
 #include "skills.h"
+#include "species-monster.h"
 #include "spl-book.h"
 #include "spl-damage.h"
 #include "spl-summoning.h"
@@ -79,7 +80,7 @@ static void _autopickup_ammo(missile_type missile)
         you.force_autopickup[OBJ_MISSILES][missile] = AP_FORCE_ON;
 }
 
-static void _newgame_setup_item(item_def &item, int slot)
+void newgame_setup_item(item_def &item, int slot)
 {
     if ((item.base_type == OBJ_WEAPONS && can_wield(&item, false, false)
         || item.base_type == OBJ_ARMOUR && can_wear_armour(item, false, false))
@@ -198,7 +199,7 @@ item_def* newgame_make_item(object_class_type base,
         return nullptr;
     }
 
-    _newgame_setup_item(item, slot);
+    newgame_setup_item(item, slot);
 
     return &item;
 }
@@ -530,145 +531,6 @@ void initial_dungeon_setup()
     initialise_item_descriptions();
 }
 
-void setup_monster_player(bool game_start)
-{
-    // XX function would be cleaner if it is part of mc_species or player?
-
-    rng::generator gameplay(rng::GAMEPLAY);
-
-    ASSERT(you.species.mon_species < NUM_MONSTERS);
-    dprf("mon_species is %d", (int) you.species.mon_species);
-    mons_spec spec = mons_spec(you.species);
-    spec.attitude = ATT_FRIENDLY;
-
-    // hacky, but it's hard to get around all the code that has to work this
-    // way: create a real monster, place it, and make a copy.
-    // TODO: packs?
-    if (you.unique_creatures[you.species.mon_species])
-        you.unique_creatures.set(you.species.mon_species, false);
-    monster *tmp_mons = dgn_place_monster(spec, coord_def(0,0), true, true, false);
-    ASSERT(tmp_mons);
-
-    // player inv should be empty before this call.
-    // first, we copy the items off the monster, and clear the monster inventory.
-    vector<item_def> mon_items;
-    for (mon_inv_iterator ii(*tmp_mons); ii; ++ii)
-    {
-        const auto slot = ii.slot();
-        mon_items.emplace_back(*ii);
-        // don't fully unlink the item
-        destroy_item(*ii);
-        tmp_mons->inv[slot] = NON_ITEM;
-    }
-
-    // then we set up monster instance. This needs to be in place before
-    // giving the player any items from the monster. Uses the copy constructor.
-    you.monster_instance = make_shared<monster>(*tmp_mons);
-    // TODO: 0,0 is not a great position for this, but everything else triggers
-    // crashes when you try to do anything substantive with the monster.
-    tmp_mons->flags |= MF_HARD_RESET; // prevents any items, corpses
-    monster_die(*tmp_mons, KILL_DISMISSED, NON_MONSTER);
-
-    if (game_start)
-    {
-        // Now move everything to the inventory.
-        for (auto &i : mon_items)
-            move_item_to_inv(i);
-
-        // Finally, do the usual newgame stuff of wielding any weapons this has
-        // provided to the player.
-        // set up some skill levels based on these items
-        // TODO: magic skills? does it matter?
-        set<skill_type> item_sks;
-        int fighting = -1;
-        bool found_armour = false;
-        for (int slot = 0; slot < ENDOFPACK; ++slot)
-        {
-            item_def& item = you.inv[slot];
-            if (item.defined())
-            {
-                _newgame_setup_item(item, slot);
-                item_skills(item, item_sks);
-
-                // armour not handled by item_skills except for shields?
-                if (item.base_type == OBJ_ARMOUR
-                    && get_armour_slot(item) == EQ_BODY_ARMOUR)
-                {
-                    if (property(item, PARM_AC) > 3) // med-heavy body armour
-                        item_sks.insert(SK_ARMOUR);
-                    else // robe, hide, leather
-                        item_sks.insert(SK_DODGING);
-                    found_armour = true;
-                }
-
-                if (is_weapon(item))
-                    fighting++;
-            }
-        }
-
-        for (auto sk : item_sks)
-            you.skills[sk]++;
-
-        if (mons_class_itemuse(you.species) < MONUSE_STARTING_EQUIPMENT)
-        {
-            fighting++;
-            you.skills[SK_UNARMED_COMBAT] += 2;
-        }
-        // TODO: where is the extra 1 point coming from?
-        if (fighting > 0)
-            you.skills[SK_FIGHTING] += fighting;
-
-        if (!found_armour)
-        {
-            you.skills[SK_DODGING]++;
-            you.skills[SK_STEALTH]++;
-        }
-
-        // religion
-        // conditioning this on is_priest is a little too quirky; for example
-        // dissolution is a priest but TRJ is not.
-        const god_type mons_god = you.monster_instance->deity();
-        if (mons_god > GOD_NO_GOD && mons_god < NUM_GODS)
-        {
-            // TODO: nameless gods?? choose randomly? or maybe use monk behavior?
-            // init gift timeout? lugonu in abyss?
-            you.religion = you.monster_instance->deity();
-            you.piety = 38; // zealot piety start
-
-            // not sure this is necessary, but it is based on lugonu
-            if (invo_skill(you.religion) != SK_NONE)
-                you.skills[invo_skill(you.religion)]++;
-        }
-        // unclear whether this matters or is a good idea:
-        if (you.monster_instance->spells.size() > 0)
-            you.skills[SK_SPELLCASTING]++;
-    }
-
-    if (you.species == MONS_BENNU || you.species == MONS_SPRIGGAN_RIDER)
-        you.lives = 1;
-
-    // start flying creatures in the air
-    if (you.racial_permanent_flight())
-        you.attribute[ATTR_PERM_FLIGHT] = 1;
-    // TODO: unhandled flags: batty, unblindable, blood scent, submerges, no_skeleton, web sense
-
-    // some spell special cases
-    if (you.species == MONS_DRACONIAN_STORMCALLER)
-    {
-        // these start off worshipping qazlal, so let them use piety-dependent
-        // upheaval. They still start with smite and summon drakes, so aren't
-        // exactly hurting...
-        erase_if(you.monster_instance->spells, [](const mon_spell_slot &t) {
-            return t.spell == SPELL_UPHEAVAL;
-        });
-    }
-    // aura of brilliance is at a unfortunate combo of buggy for players to
-    // cast + extremely useless, so disable it for now
-    erase_if(you.monster_instance->spells, [](const mon_spell_slot &t) {
-        return t.spell == SPELL_AURA_OF_BRILLIANCE;
-    });
-}
-
 static void _setup_generic(const newgame_def& ng,
                            bool normal_dungeon_setup /*for catch2-tests*/)
 {
@@ -700,7 +562,7 @@ static void _setup_generic(const newgame_def& ng,
     if (you.species == SP_MONSTER)
     {
         you.species = ng.monster_species;
-        setup_monster_player();
+        species::setup_monster_player();
     }
 
     you.chr_class_name = get_job_name(you.char_class);

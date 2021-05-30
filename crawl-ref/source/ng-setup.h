@@ -12,10 +12,10 @@ item_def* newgame_make_item(object_class_type base,
                             int sub_type,
                             int qty = 1, int plus = 0, int force_ego = 0,
                             bool force_tutorial = false);
+void newgame_setup_item(item_def &item, int slot);
 
 struct newgame_def;
 void setup_game(const newgame_def& ng, bool normal_dungeon_setup=true);
 void initial_dungeon_setup();
 
-void setup_monster_player(bool game_start=true);
 void give_items_skills(const newgame_def& ng);
