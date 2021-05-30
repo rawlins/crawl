@@ -211,6 +211,7 @@ skill-menu.o \
 skills.o \
 sound.o \
 species.o \
+species-monster.o \
 spl-book.o \
 spl-cast.o \
 spl-clouds.o \
