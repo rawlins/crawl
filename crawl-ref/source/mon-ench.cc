@@ -1340,9 +1340,26 @@ static void _merfolk_avatar_song(monster* mons)
     }
 }
 
+static bool _proxy_allowed_enchs(enchant_type en)
+{
+    // any enchantments that should be run for the player go here; usually
+    // needs a custom implementation.
+    switch (en)
+    {
+    case ENCH_SLOWLY_DYING:
+    case ENCH_SHORT_LIVED:
+        return true;
+    default:
+        return false;
+    }
+}
+
 void monster::apply_enchantment(const mon_enchant &me)
 {
     enchant_type en = me.ench;
+    if (is_player_proxy() && !_proxy_allowed_enchs(en))
+        return;
+
     switch (me.ench)
     {
     case ENCH_INSANE:
@@ -1542,7 +1559,19 @@ void monster::apply_enchantment(const mon_enchant &me)
     case ENCH_SHORT_LIVED:
         // This should only be used for ball lightning -- bwr
         if (decay_enchantment(en))
+        {
+            if (is_player_proxy())
+            {
+                // (the above comment is a lie)
+                if (type == MONS_BRIAR_PATCH)
+                    ouch(INSTANT_DEATH, KILLED_BY_FRAILTY, MID_PLAYER, "withering");
+                else if (type == MONS_FOXFIRE)
+                    ouch(INSTANT_DEATH, KILLED_BY_FRAILTY, MID_PLAYER, "dissipating");
+                else
+                    ouch(INSTANT_DEATH, KILLED_BY_DEATH_EXPLOSION, MID_PLAYER, "", true, "you");
+            }
             suicide();
+        }
         break;
 
     case ENCH_SLOWLY_DYING:
@@ -1566,6 +1595,27 @@ void monster::apply_enchantment(const mon_enchant &me)
                         break;
 
                 }
+            }
+            else if (is_player_proxy())
+            {
+                string why = "withering";
+                switch (type)
+                {
+                case MONS_PILLAR_OF_SALT:
+                case MONS_WITHERED_PLANT:
+                    // TODO: is there a better death type than frailty?
+                    mprf("You crumble away.");
+                    why = "crumbling";
+                    break;
+                case MONS_BLOCK_OF_ICE:
+                    mprf("You melt away.");
+                    why = "melting";
+                    break;
+                default:
+                    mprf("You wither and die.");
+                    break;
+                }
+                ouch(INSTANT_DEATH, KILLED_BY_FRAILTY, MID_PLAYER, why.c_str());
             }
 
             monster_die(*this, KILL_MISC, NON_MONSTER, true);

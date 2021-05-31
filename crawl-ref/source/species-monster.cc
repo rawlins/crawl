@@ -109,6 +109,25 @@ namespace species
         monster *tmp_mons = dgn_place_monster(spec, coord_def(0,0), true, true, false);
         ASSERT(tmp_mons);
 
+        // these get their name from a base monster, use the player
+        if (you.species == MONS_BLOCK_OF_ICE || you.species == MONS_PILLAR_OF_SALT)
+            tmp_mons->base_monster = MONS_PLAYER;
+
+        // some inherent enchantments for summoned monsters that are normally
+        // handled when casting a spell, not on monster creation
+        if (you.species == MONS_BALL_LIGHTNING
+            || you.species == MONS_BALLISTOMYCETE_SPORE
+            || you.species == MONS_FOXFIRE)
+        {
+            tmp_mons->add_ench(ENCH_SHORT_LIVED);
+        }
+        else if (you.species == MONS_BRIAR_PATCH)
+        {
+            // not sure it matters but this has a custom duration
+            tmp_mons->add_ench(
+                mon_enchant(ENCH_SHORT_LIVED, 1, nullptr, 80 + random2(100)));
+        }
+
         // player inv should be empty before this call.
         // first, we copy the items off the monster, and clear the monster inventory.
         vector<item_def> mon_items;
@@ -448,9 +467,8 @@ namespace species
         // Would it be better to handle these as a fakemut?
         const int base_speed = mons_energy_to_delay(*you.monster_instance,
                                                                     EUT_MOVE);
-        if (base_speed < 10)
+        if (base_speed > 0 && base_speed < 10)
         {
-            ASSERT(base_speed > 0);
             // convert monster speed into levels of the fast mutation. This is
             // a bit coarser than monsters, and requires more levels than 3.
             // For example, a speed 30 bat ends up with a level 8 mut, leading

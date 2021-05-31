@@ -1450,6 +1450,16 @@ void scorefile_entry::init_death_cause(int dam, mid_t dsrc,
                             "";
         indirectkiller = killerpath = "";
     }
+    else if (death_type == KILLED_BY_MONSTER
+        && death_source == MID_PLAYER && you.species.is_monster()
+        && mons_self_destructs(*you.monster_instance))
+    {
+        // player proxy suicide currently uses MID_PLAYER
+        death_source_name = "an act of self-destruction";
+        indirectkiller = death_source_name;
+        killerpath = "";
+        return;
+    }
     else
     {
         if (dsrc_name)
@@ -2490,6 +2500,8 @@ string scorefile_entry::death_description(death_desc_verbosity verbosity) const
         {
             if (death_source_name.empty())
                 desc += "spore";
+            else if (death_source_name == "you")
+                desc += "self-explosion";
             else
                 desc += death_source_name;
         }
@@ -2498,6 +2510,8 @@ string scorefile_entry::death_description(death_desc_verbosity verbosity) const
             desc += "Killed by an exploding ";
             if (death_source_name.empty())
                 desc += "spore";
+            else if (death_source_name == "you")
+                desc = "Killed by exploding";
             else
                 desc += death_source_name;
         }

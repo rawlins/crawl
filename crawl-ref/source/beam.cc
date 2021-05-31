@@ -3815,6 +3815,10 @@ void bolt::affect_player()
         return;
     }
 
+    // handled in mons_adjust_flavoured via a type check
+    if (flavour == BEAM_SPORE && you.species == MONS_BALLISTOMYCETE)
+        return;
+
     // Visible beams reveal invisible monsters; otherwise animations confer
     // an information advantage for sighted players
     if (visible() && agent() && agent()->is_monster())

@@ -861,6 +861,10 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
     if (you.pending_revival)
         return;
 
+    // projectiles can't take damage unless triggered
+    if (mons_is_projectile(you.species) && dam != INSTANT_DEATH)
+        return;
+
     int drain_amount = 0;
 
     // Multiply damage if scarf of harm is in play
@@ -1020,6 +1024,20 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
                 if (transform(30, transformation::dragon, true))
                     return;
             }
+
+            // plants. Duplicates code in monster::hurt
+            if (you.species.is_monster()
+                && mons_is_fragile(*you.monster_instance)
+                && !you.monster_instance->has_ench(ENCH_SLOWLY_DYING))
+            {
+                if (you.species == MONS_WITHERED_PLANT)
+                    mprf("You begin to crumble.");
+                else
+                    mprf("You begin to die.");
+                you.monster_instance->add_ench(
+                    mon_enchant(ENCH_SLOWLY_DYING, 1, nullptr, 30 + random2(20)));
+            }
+
             _deteriorate(dam);
             _yred_mirrors_injury(dam, source);
             _maybe_ru_retribution(dam, source);
@@ -1040,6 +1058,20 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
         }
         if (you.hp > 0)
           return;
+    }
+
+    // death...
+
+    if (dam == INSTANT_DEATH
+        && death_type != KILLED_BY_WINNING
+        && death_type != KILLED_BY_QUITTING
+        && death_type != KILLED_BY_LEAVING
+        && death_type != KILLED_BY_WIZMODE)
+    {
+        // TODO: is this right? traditionally crawl didn't do this even for
+        // something like a lava death. But, we want this at least for monster
+        // suicide deaths.
+        you.hp = 0;
     }
 
     // Is the player being killed by a direct act of Xom?

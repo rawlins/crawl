@@ -3504,6 +3504,11 @@ void monster::blame_damage(const actor* attacker, int amount)
 
 void monster::suicide(int hp_target)
 {
+    // don't kill a player proxy -- this will lead to crashes on invalid
+    // monster. Right now, all these cases are handled outside the suicide()
+    // call. TODO: can this be centralized?
+    if (is_player_proxy())
+        return;
     ASSERT(hp_target <= 0);
     const int dam = hit_points - hp_target;
     if (dam > 0)

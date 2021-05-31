@@ -779,6 +779,16 @@ bool melee_attack::handle_phase_end()
             _handle_spectral_brand(*attacker, *defender);
     }
 
+    if (attacker->is_player() && you.species.is_monster()
+        && mons_self_destructs(*you.monster_instance))
+    {
+        // XX this is a different blame setting than regular dissipation
+        // if any of these monsters have a hint of playability, you should get
+        // a warning before attacking (maybe OoD?)
+        ouch(INSTANT_DEATH, KILLED_BY_MONSTER, MID_PLAYER);
+        return true; // (not reachable?)
+    }
+
     return attack::handle_phase_end();
 }
 

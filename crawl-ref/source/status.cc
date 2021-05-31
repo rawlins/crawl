@@ -696,6 +696,17 @@ bool fill_status_info(int status, status_info& inf)
         }
         break;
 
+    case STATUS_SLOWLY_DYING:
+        if (you.species.is_monster()
+            && you.monster_instance->has_ench(ENCH_SLOWLY_DYING))
+        {
+            inf.light_colour = LIGHTRED;
+            inf.light_text = "slowly dying";
+            inf.short_text = "slowly dying";
+            inf.long_text = "You are slowly dying!";
+        }
+        break;
+
     default:
         if (!found)
         {

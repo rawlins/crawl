@@ -1469,6 +1469,12 @@ item_def* monster_die(monster& mons, killer_type killer,
 {
     ASSERT(!invalid_monster(&mons));
 
+    // killing the player proxy is a recipe for crashes. Just kill the player
+    // instead. (Could trigger player death here? But a lot of code doesn't
+    // currently work that way.)
+    if (mons.is_player_proxy())
+        return nullptr;
+
     const bool was_visible = you.can_see(mons);
 
     // If a monster was banished to the Abyss and then killed there,

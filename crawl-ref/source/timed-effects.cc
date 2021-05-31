@@ -480,6 +480,10 @@ void handle_time()
     if (!crawl_state.game_is_arena())
         _apply_contam_over_time();
 
+    if (you.species.is_monster())
+        you.monster_instance->apply_enchantments();
+
+    // TODO: handle shapeshifter enchant in mon-ench.cc
     if (you.species.is_monster() && you.monster_instance->is_shapeshifter()
         && !you.confused() && !you.petrified() && !you.petrifying()
         && !you.asleep() && !player_stair_delay())
