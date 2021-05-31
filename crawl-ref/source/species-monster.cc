@@ -670,32 +670,32 @@ namespace species
             switch (you.monster_instance->body_size(PSIZE_TORSO))
             {
             case SIZE_TINY:
-                you.base_stats[STAT_STR] = 0;
-                you.base_stats[STAT_DEX] = 8;
+                you.base_stats[STAT_STR] = 1;
+                you.base_stats[STAT_DEX] = 10;
                 break;
             case SIZE_LITTLE:
                 you.base_stats[STAT_STR] = 1;
-                you.base_stats[STAT_DEX] = 6;
+                you.base_stats[STAT_DEX] = 8;
                 break;
             case SIZE_SMALL:
                 you.base_stats[STAT_STR] = 2;
-                you.base_stats[STAT_DEX] = 4;
+                you.base_stats[STAT_DEX] = 6;
                 break;
             case SIZE_MEDIUM:
-                you.base_stats[STAT_STR] = 3;
-                you.base_stats[STAT_DEX] = 3;
+                you.base_stats[STAT_STR] = 4;
+                you.base_stats[STAT_DEX] = 4;
                 break;
             case SIZE_LARGE:
-                you.base_stats[STAT_STR] = 4;
+                you.base_stats[STAT_STR] = 6;
                 you.base_stats[STAT_DEX] = 2;
                 break;
             case SIZE_BIG:
-                you.base_stats[STAT_STR] = 6;
+                you.base_stats[STAT_STR] = 8;
                 you.base_stats[STAT_DEX] = 1;
                 break;
             case SIZE_GIANT:
-                you.base_stats[STAT_STR] = 8;
-                you.base_stats[STAT_DEX] = 0;
+                you.base_stats[STAT_STR] = 10;
+                you.base_stats[STAT_DEX] = 1;
                 break;
             default:
                 break;
@@ -706,7 +706,7 @@ namespace species
 
         // not very fine-grained:
         if (you.monster_instance->spells.size() > 0)
-            you.base_stats[STAT_INT] += 1;
+            you.base_stats[STAT_INT] += 2;
 
         if (you.monster_instance->has_attack_flavour(AF_TRAMPLE))
             you.base_stats[STAT_STR] += 2;
@@ -716,9 +716,9 @@ namespace species
             you.base_stats[STAT_STR] += 1;
 
         if (you.species == MONS_DEEP_ELF_BLADEMASTER)
-            you.base_stats[STAT_DEX] += 2; // blademasters get dex, not str
+            you.base_stats[STAT_DEX] += 3; // blademasters get dex, not str
         else if (mons_class_flag(you.species, M_TWO_WEAPONS))
-            you.base_stats[STAT_STR] += 1;
+            you.base_stats[STAT_STR] += 2;
 
         // does this actually make sense?
         if (mons_class_flag(you.species, M_BATTY))
@@ -729,18 +729,24 @@ namespace species
         // would it make sense to use speed and or ev to impact dex?
 
         // monsters whose flavor text implies bonus strength/dex:
-        if (you.species == MONS_ETTIN
-            || you.species == MONS_LINDWURM
-            || you.species == MONS_WOLF
-            || you.species == MONS_WAR_GARGOYLE)
+        if (you.species == MONS_WAR_GARGOYLE)
         {
-            you.base_stats[STAT_STR] += 1;
+            // large boost because regular gargoyle is pretty mediocre at the
+            // moment
+            you.base_stats[STAT_STR] += 4;
+            you.base_stats[STAT_DEX] += 4;
         }
-        if (mons_genus(you.species) == MONS_SNAKE)
-            you.base_stats[STAT_DEX] += 1;
+        if (you.species == MONS_ETTIN || you.species == MONS_LINDWURM)
+            you.base_stats[STAT_STR] += 3;
+
+        if (mons_genus(you.species) == MONS_SNAKE
+            || you.species == MONS_WOLF)
+        {
+            you.base_stats[STAT_DEX] += 2;
+        }
 
         if (you.species == MONS_SONJA)
-            you.base_stats[STAT_DEX] += 2;
+            you.base_stats[STAT_DEX] += 3;
 
         // and the reverse:
         if (you.species == MONS_SALAMANDER_MYSTIC)
