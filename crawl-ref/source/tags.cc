@@ -75,6 +75,7 @@
 #include "religion.h"
 #include "skills.h"
 #include "species.h"
+#include "species-monster.h"
 #include "spl-wpnench.h"
 #include "state.h"
 #include "stringutil.h"
@@ -1367,7 +1368,11 @@ static void _tag_construct_char(writer &th)
     marshallByte(th, you.char_class);
     marshallByte(th, you.experience_level);
 
-    string job_name = get_job_name(you.char_class);
+    string job_name;
+    if (species::has_player_mname(you.species))
+        job_name = mons_type_name(you.species, DESC_PLAIN);
+    else
+        job_name = get_job_name(you.char_class);
     marshallString2(th, job_name);
     marshallByte(th, you.religion);
     marshallString2(th, you.jiyva_second_name);

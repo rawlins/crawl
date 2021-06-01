@@ -42,6 +42,7 @@
 #include "scroller.h"
 #include "showsymb.h"
 #include "skills.h"
+#include "species-monster.h"
 #include "state.h"
 #include "status.h"
 #include "stringutil.h"
@@ -1213,6 +1214,11 @@ static void _redraw_title()
 {
     const unsigned int WIDTH = crawl_view.hudsz.x;
     string title = you.your_name + " " + filtered_lang(player_title());
+    // If line 2 will print e.g. "Plog the Cloud Mage", put that on line 1.
+    // The real title is still visible in % and morgues.
+    if (species::has_player_mname(you.species))
+        title = uppercase_first(you.species_appellation(false));
+
     const bool small_layout =
 #ifdef USE_TILE_LOCAL
                               tiles.is_using_small_layout();
@@ -1261,6 +1267,8 @@ static void _redraw_title()
     textcolour(YELLOW);
     CGOTOXY(1, 2, GOTO_STAT);
     string species = uppercase_first(you.species_appellation(false));
+    if (species::has_player_mname(you.species))
+        species = "";
     NOWRAP_EOL_CPRINTF("%s", species.c_str());
     if (you_worship(GOD_NO_GOD))
     {
@@ -1283,6 +1291,8 @@ static void _redraw_title()
     else
     {
         string god = " of ";
+        if (species::has_player_mname(you.species))
+            god = "A worshipper of ";
         god += you_worship(GOD_JIYVA) ? god_name_jiyva(true)
                                       : god_name(you.religion);
         NOWRAP_EOL_CPRINTF("%s", god.c_str());

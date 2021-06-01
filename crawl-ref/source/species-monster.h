@@ -11,4 +11,5 @@ namespace species
     void give_basic_monster_mutations(mc_species species);
     const vector<string> monster_fake_mutations(mc_species species, bool terse);
     void monster_stat_init(mc_species species);
+    bool has_player_mname(monster_type mt);
 }

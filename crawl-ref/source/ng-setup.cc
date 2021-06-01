@@ -565,6 +565,7 @@ static void _setup_generic(const newgame_def& ng,
         species::setup_monster_player();
     }
 
+    // TODO: this gets overwritten in tags.cc, why is it even here?
     you.chr_class_name = get_job_name(you.char_class);
 
     species_stat_init(you.species);     // must be down here {dlb}

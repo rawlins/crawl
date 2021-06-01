@@ -41,6 +41,15 @@ static bool _skill_needs_usable_hands(skill_type sk)
 
 namespace species
 {
+    /// Should the monster instance receive an mname based on the player name?
+    /// Currently used to duplicate effects of lua code for wizlab uniques
+    bool has_player_mname(monster_type mt)
+    {
+        if (mt == MONS_HELLBINDER || mt == MONS_CLOUD_MAGE)
+            return true;
+        return false;
+    }
+
     string player_monster_name(bool full_desc)
     {
         if (you.species != SP_MONSTER)
@@ -65,7 +74,13 @@ namespace species
 
             r = getMiscString(mi.common_name(DESC_DBNAME) + " title");
             if (r.empty())
-                r = lowercase_first(mi.full_name(DESC_A));
+            {
+                r = mi.full_name(DESC_A);
+                // only do the lowercase if an indefinite actually came out;
+                // we might still get an mname first (e.g. for Hellbinder)
+                if (starts_with(r, "A ") || starts_with(r, "An "))
+                    r = lowercase_first(r);
+            }
             // not tracked for monster, but we do want it for player:
             if (ex_rider)
                 r += " ex-rider";
@@ -112,6 +127,13 @@ namespace species
         // these get their name from a base monster, use the player
         if (you.species == MONS_BLOCK_OF_ICE || you.species == MONS_PILLAR_OF_SALT)
             tmp_mons->base_monster = MONS_PLAYER;
+
+        if (has_player_mname(you.species))
+        {
+            tmp_mons->props["dbname"] = tmp_mons->name(DESC_DBNAME, true);
+            dprf("dbname: %s", tmp_mons->name(DESC_DBNAME, true).c_str());
+            tmp_mons->mname = you.your_name;
+        }
 
         // some inherent enchantments for summoned monsters that are normally
         // handled when casting a spell, not on monster creation

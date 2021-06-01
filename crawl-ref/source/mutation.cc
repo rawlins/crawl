@@ -1108,7 +1108,12 @@ string describe_mutations(bool drop_title)
         }
 
         string db_name;
-        if (mi.mname.empty())
+        // TODO: I think the mname logic here is wrong, in which case the
+        // props check can maybe be removed? See Hellbinder et al. But, what
+        // else uses mname?
+        if (mi.props.exists("dbname"))
+            db_name = mi.props["dbname"].get_string();
+        else if (mi.mname.empty())
             db_name = mi.db_name();
         else
             db_name = mi.full_name(DESC_PLAIN);
