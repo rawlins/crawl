@@ -1085,7 +1085,6 @@ string describe_mutations(bool drop_title)
     if (you.monster_instance)
     {
         // for monster species, this screen displays some monster info too.
-        bool has_stat_desc = false;
         monster_info mi(you.monster_instance.get());
 
         string title = species::player_monster_name(true);
@@ -1107,27 +1106,12 @@ string describe_mutations(bool drop_title)
             result += ".</white>\n\n";
         }
 
-        string db_name;
-        // TODO: I think the mname logic here is wrong, in which case the
-        // props check can maybe be removed? See Hellbinder et al. But, what
-        // else uses mname?
-        if (mi.props.exists("dbname"))
-            db_name = mi.props["dbname"].get_string();
-        else if (mi.mname.empty())
-            db_name = mi.db_name();
-        else
-            db_name = mi.full_name(DESC_PLAIN);
-
-        if (mons_species(mi.type) == MONS_SERPENT_OF_HELL)
-            db_name += " " + serpent_of_hell_flavour(mi.type);
-
-
         describe_info inf;
-        get_monster_db_desc(mi, inf, has_stat_desc);
+        get_monster_db_desc_main(mi, inf);
 
-        // show quote? `getQuoteString(db_name);`
+        // show quote? it is filled by the above function
         result += "<lightgray>";
-        result += getLongDescription(db_name);
+        result += inf.body.str();
         result += "</lightgray>\n";
     }
 

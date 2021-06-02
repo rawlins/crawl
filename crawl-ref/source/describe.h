@@ -64,6 +64,7 @@ void target_item(item_def &item);
 string monster_attacks_description(const monster_info& mi);
 int describe_monsters(const monster_info &mi, const string& footer = "");
 
+void get_monster_db_desc_main(const monster_info &mi, describe_info &inf);
 void get_monster_db_desc(const monster_info &mi, describe_info &inf,
                          bool &has_stat_desc);
 branch_type serpent_of_hell_branch(monster_type m);

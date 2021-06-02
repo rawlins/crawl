@@ -4678,15 +4678,9 @@ string serpent_of_hell_flavour(monster_type m)
     return lowercase_string(branches[serpent_of_hell_branch(m)].shortname);
 }
 
-// Fetches the monster's database description and reads it into inf.
-void get_monster_db_desc(const monster_info& mi, describe_info &inf,
-                         bool &has_stat_desc)
+/// fill inf.body with description only, and fill inf.quote
+void get_monster_db_desc_main(const monster_info& mi, describe_info &inf)
 {
-    if (inf.title.empty())
-        inf.title = getMiscString(mi.common_name(DESC_DBNAME) + " title");
-    if (inf.title.empty())
-        inf.title = uppercase_first(mi.full_name(DESC_A)) + ".";
-
     string db_name;
 
     if (mi.props.exists("dbname"))
@@ -4735,11 +4729,6 @@ void get_monster_db_desc(const monster_info& mi, describe_info &inf,
     if (!inf.quote.empty() && !quote2.empty())
         inf.quote += "\n";
     inf.quote += quote2;
-
-    const string it = mi.pronoun(PRONOUN_SUBJECTIVE);
-    const string it_o = mi.pronoun(PRONOUN_OBJECTIVE);
-    const string It = uppercase_first(it);
-    const string is = conjugate_verb("are", mi.pronoun_plurality());
 
     switch (mi.type)
     {
@@ -4816,16 +4805,8 @@ void get_monster_db_desc(const monster_info& mi, describe_info &inf,
         break;
     }
 
-    if (mons_class_is_fragile(mi.type))
-    {
-        if (mi.is(MB_CRUMBLING))
-            inf.body << "\nIt is quickly crumbling away.\n";
-        else if (mi.is(MB_WITHERING))
-            inf.body << "\nIt is quickly withering away.\n";
-        else
-            inf.body << "\nIf struck, it will die soon after.\n";
-    }
-
+    // possibly just dancing weapons? Mainly in this function because of
+    // `symbol`
     if (!mons_is_unique(mi.type))
     {
         string symbol_suffix = "__";
@@ -4837,6 +4818,33 @@ void get_monster_db_desc(const monster_info& mi, describe_info &inf,
 
         if (!suffix.empty())
             inf.body << "\n" << suffix;
+    }
+}
+
+// Fetches the monster's database description and reads it into inf.
+void get_monster_db_desc(const monster_info& mi, describe_info &inf,
+                         bool &has_stat_desc)
+{
+    if (inf.title.empty())
+        inf.title = getMiscString(mi.common_name(DESC_DBNAME) + " title");
+    if (inf.title.empty())
+        inf.title = uppercase_first(mi.full_name(DESC_A)) + ".";
+
+    get_monster_db_desc_main(mi, inf);
+
+    const string it = mi.pronoun(PRONOUN_SUBJECTIVE);
+    const string it_o = mi.pronoun(PRONOUN_OBJECTIVE);
+    const string It = uppercase_first(it);
+    const string is = conjugate_verb("are", mi.pronoun_plurality());
+
+    if (mons_class_is_fragile(mi.type))
+    {
+        if (mi.is(MB_CRUMBLING))
+            inf.body << "\nIt is quickly crumbling away.\n";
+        else if (mi.is(MB_WITHERING))
+            inf.body << "\nIt is quickly withering away.\n";
+        else
+            inf.body << "\nIf struck, it will die soon after.\n";
     }
 
     const int curse_power = mummy_curse_power(mi.type);
