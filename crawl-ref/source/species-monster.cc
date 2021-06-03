@@ -95,6 +95,8 @@ namespace species
             // that could be confused with player species. Is this still
             // helpful?
 
+            if (you.species == MONS_PANDEMONIUM_LORD)
+                r += "the Lord ";
             r += you.monster_instance->full_name(DESC_PLAIN);
             if (ex_rider)
                 r += " ex-rider";
