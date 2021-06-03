@@ -850,6 +850,8 @@ bool player::antimagic_susceptible() const
 bool player::is_web_immune() const
 {
     // Spider form
+    if (you.species.is_monster() && you.monster_instance->is_web_immune())
+        return true;
     return form == transformation::spider;
 }
 
