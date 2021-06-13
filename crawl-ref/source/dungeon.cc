@@ -4832,7 +4832,8 @@ int dgn_place_item(const item_spec &spec,
                 dprf(DIAG_DNGN, "vault spec: placing %s at %d,%d",
                     env.item[item_made].name(DESC_INVENTORY, false, true).c_str(),
                     where.x, where.y);
-                env.level_map_mask(where) |= MMT_NO_TRAP;
+                if (in_bounds(where))
+                    env.level_map_mask(where) |= MMT_NO_TRAP;
                 return item_made;
             }
             else

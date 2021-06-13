@@ -243,6 +243,7 @@ void reassess_starting_skills()
             skill_exp_needed(you.skills[sk], sk, SP_HUMAN) + 1 : 0;
 
         if (sk == SK_DODGING && you.skills[SK_ARMOUR]
+            && you.species != MONS_ANIMATED_ARMOUR
             && (is_useless_skill(SK_ARMOUR)
                 || you_can_wear(EQ_BODY_ARMOUR) != MB_TRUE))
         {
@@ -2046,6 +2047,15 @@ unsigned int skill_exp_needed(int lev, skill_type sk, species_type sp)
     return exp[lev] * species_apt_factor(sk, sp);
 }
 
+static monster_type mons_species_initialized = MONS_NO_MONSTER;
+
+void invalidate_monster_skills()
+{
+    // force recalculation; useful during setup since initial calculation
+    // can happen by side effect
+    mons_species_initialized = MONS_NO_MONSTER;
+}
+
 static void _init_monster_skills()
 {
     ASSERT(you.species == SP_MONSTER && you.monster_instance);
@@ -2067,7 +2077,6 @@ static void _init_monster_skills()
 int species_apt(skill_type skill, mc_species species)
 {
     static bool spec_skills_initialised = false;
-    static monster_type mons_species_initialized = MONS_NO_MONSTER;
     if (!spec_skills_initialised)
     {
         // Setup sentinel values to find errors more easily.

@@ -1648,6 +1648,12 @@ static void _experience_check()
 
 static void _do_remove_armour()
 {
+    if (you.species == MONS_ANIMATED_ARMOUR)
+    {
+        mprf("You can't remove yourself!");
+        return;
+    }
+
     if (you.has_mutation(MUT_NO_ARMOUR))
     {
         mprf("You can't remove your %s, sorry.",

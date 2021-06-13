@@ -53,6 +53,7 @@
 #include "shout.h"
 #include "skills.h"
 #include "sound.h"
+#include "species-monster.h"
 #include "spl-book.h"
 #include "spl-clouds.h"
 #include "spl-goditem.h"
@@ -382,6 +383,26 @@ bool can_wield(const item_def *weapon, bool say_reason,
                bool ignore_temporary_disability, bool unwield, bool only_known)
 {
 #define SAY(x) {if (say_reason) { x; }}
+    dprf("checking can_wield");
+    if (mons_class_is_animated_weapon(you.species))
+    {
+        if (unwield)
+        {
+            SAY(mpr("You can't unwield yourself!"));
+            return false;
+        }
+        // it would be sort of cool to allow dancing weapons to upgrade to new
+        // defining objects, but that's not how dcss dancing weapons work, so
+        // not for monstercrawl 1.0
+        else if (species::animated_object_check(weapon))
+            return true;
+        else
+        {
+            SAY(mpr("Weapons can't wield things!"))
+            return false;
+        }
+    }
+
     if (you.melded[EQ_WEAPON] && unwield)
     {
         SAY(mpr("Your weapon is melded into your body!"));
@@ -848,6 +869,14 @@ static string _cant_wear_barding_reason(bool ignore_temporary)
  */
 bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
 {
+    if (you.species == MONS_ANIMATED_ARMOUR)
+    {
+        if (species::animated_object_check(&item))
+            return true;
+        if (verbose)
+            mpr("Armour can't wear more armour!");
+        return false;
+    }
 
     auto species = you.species.genus();
 

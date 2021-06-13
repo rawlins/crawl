@@ -25,7 +25,8 @@ bool choose_game(newgame_def& ng, newgame_def& choice,
 
 string newgame_random_name();
 
-monster_type choose_monster_species(monster_type quick_choice=MONS_NO_MONSTER);
+class mons_spec;
+mons_spec choose_monster_species(monster_type quick_choice=MONS_NO_MONSTER);
 
 /*
  * A structure for grouping backgrounds by category.

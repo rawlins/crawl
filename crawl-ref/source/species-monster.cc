@@ -7,6 +7,7 @@
 #include "items.h"
 #include "mapdef.h"
 #include "mon-death.h"
+#include "mon-gear.h"
 #include "monster.h"
 #include "mpr.h"
 #include "ng-setup.h"
@@ -14,6 +15,7 @@
 #include "skills.h"
 #include "species.h"
 #include "species-monster.h"
+#include "state.h"
 #include "stringutil.h"
 
 static bool _skill_needs_usable_hands(skill_type sk)
@@ -107,15 +109,38 @@ namespace species
         return r;
     }
 
-    void setup_monster_player(bool game_start)
+    /// Can `i` serve as an animating item for the player?
+    bool animated_object_check(const item_def *i)
+    {
+        if (!mons_class_is_animated_object(you.species) || !i)
+            return false;
+
+        // player setup: any item aligning with the species is possible
+        // (this should really check sub-type for armour...)
+        if (!crawl_state.game_started || !you.monster_instance)
+        {
+            return mons_class_is_animated_weapon(you.species)
+                ? (i->base_type == OBJ_WEAPONS)
+                : (i->base_type == OBJ_ARMOUR);
+        }
+
+        // once setup is done: the player is stuck with that item. (It'd be
+        // interesting to allow changing weapons, but that's not for
+        // monstercrawl v. 1.)
+        return i == you.monster_instance->get_defining_object();
+    }
+
+    void setup_monster_player(bool game_start, const string &item_override)
     {
         // XX function would be cleaner if it is part of mc_species or player?
 
         rng::generator gameplay(rng::GAMEPLAY);
 
         ASSERT(you.species.mon_species < NUM_MONSTERS);
-        dprf("mon_species is %d", (int) you.species.mon_species);
+        dprf("Setting up monster species %d, item override '%s'", (int) you.species.mon_species, item_override.c_str());
         mons_spec spec = mons_spec(you.species);
+        if (item_override.size() > 0)
+            spec.items.add_item(item_override); // parsing should already be ok
         spec.attitude = ATT_FRIENDLY;
 
         // hacky, but it's hard to get around all the code that has to work this
@@ -152,6 +177,41 @@ namespace species
                 mon_enchant(ENCH_SHORT_LIVED, 1, nullptr, 80 + random2(100)));
         }
 
+        const bool animated = mons_class_is_animated_object(you.species);
+
+        // animated weapons need an item to live, or there is trouble. Dancing
+        // weapons get this automatically, but spectral weapons and animated
+        // armour need some custom code here, since they derive from a caster
+        // normally.
+        if (item_override.size() == 0 && you.species == MONS_SPECTRAL_WEAPON)
+        {
+            // spectral weapons do have a default value to prevent crashes
+            // elsewhere, but it isn't representative of player weapons.
+            destroy_item(tmp_mons->inv[MSLOT_WEAPON]);
+            tmp_mons->inv[MSLOT_WEAPON] = NON_ITEM;
+        }
+        if (animated && !tmp_mons->get_defining_object())
+        {
+            const string def_item_spec = make_stringf("any %s%s",
+                you.species == MONS_ANIMATED_ARMOUR ? "armour" : "weapon",
+                coinflip() ? " good_item" : "");
+            int def_item_idx = NON_ITEM;
+            for (int i = 0; i < 100; ++i)
+            {
+                def_item_idx = create_item_named(def_item_spec, coord_def(0,0), nullptr);
+                if (def_item_idx != NON_ITEM
+                    && (env.item[def_item_idx].base_type == OBJ_WEAPONS
+                        || get_armour_slot(env.item[def_item_idx]) == EQ_BODY_ARMOUR))
+                {
+                    break;
+                }
+                destroy_item(def_item_idx);
+                def_item_idx = NON_ITEM;
+            }
+            ASSERT(def_item_idx != NON_ITEM); // is 100 iters enough?
+            give_specific_item(tmp_mons, env.item[def_item_idx]);
+        }
+
         // player inv should be empty before this call.
         // first, we copy the items off the monster, and clear the monster inventory.
         vector<item_def> mon_items;
@@ -172,7 +232,11 @@ namespace species
         tmp_mons->flags |= MF_HARD_RESET; // prevents any items, corpses
         monster_die(*tmp_mons, KILL_DISMISSED, NON_MONSTER);
 
-        if (game_start)
+        // The animating item needs to be moved, regardless of whether it's
+        // game start
+        // TODO: wizmode change species with a full inventory or wielded weapon
+        // probably breaks
+        if (game_start || animated)
         {
             // Now move everything to the inventory.
             for (auto &i : mon_items)
@@ -209,42 +273,51 @@ namespace species
                 }
             }
 
-            for (auto sk : item_sks)
-                you.skills[sk]++;
-
-            if (mons_class_itemuse(you.species) < MONUSE_STARTING_EQUIPMENT)
+            if (game_start)
             {
-                fighting++;
-                you.skills[SK_UNARMED_COMBAT] += 2;
-            }
-            // TODO: where is the extra 1 point coming from?
-            if (fighting > 0)
-                you.skills[SK_FIGHTING] += fighting;
+                // make sure anything done above is factored in
+                invalidate_monster_skills();
+                for (auto sk : item_sks)
+                    you.skills[sk]++;
 
-            if (!found_armour)
-            {
-                you.skills[SK_DODGING]++;
-                you.skills[SK_STEALTH]++;
-            }
+                if (mons_class_itemuse(you.species) < MONUSE_STARTING_EQUIPMENT
+                    // most animated weapons have unarmed as unusable
+                    && species_apt(SK_UNARMED_COMBAT) != UNUSABLE_SKILL)
+                {
+                    fighting++;
+                    you.skills[SK_UNARMED_COMBAT] += 2;
+                }
+                // TODO: where is the extra 1 point coming from?
+                if (fighting > 0)
+                    you.skills[SK_FIGHTING] += fighting;
 
-            // religion
-            // conditioning this on is_priest is a little too quirky; for example
-            // dissolution is a priest but TRJ is not.
-            const god_type mons_god = you.monster_instance->deity();
-            if (mons_god > GOD_NO_GOD && mons_god < NUM_GODS)
-            {
-                // TODO: nameless gods?? choose randomly? or maybe use monk behavior?
-                // init gift timeout? lugonu in abyss?
-                you.religion = you.monster_instance->deity();
-                you.piety = 38; // zealot piety start
+                if (!found_armour)
+                {
+                    dprf("no armour found");
+                    you.skills[SK_DODGING]++;
+                    you.skills[SK_STEALTH]++;
+                }
 
-                // not sure this is necessary, but it is based on lugonu
-                if (invo_skill(you.religion) != SK_NONE)
-                    you.skills[invo_skill(you.religion)]++;
+                // religion
+                // conditioning this on is_priest is a little too quirky; for example
+                // dissolution is a priest but TRJ is not.
+                const god_type mons_god = you.monster_instance->deity();
+                if (mons_god > GOD_NO_GOD && mons_god < NUM_GODS)
+                {
+                    // TODO: nameless gods?? choose randomly? or maybe use monk behavior?
+                    // init gift timeout? lugonu in abyss?
+                    you.religion = you.monster_instance->deity();
+                    you.piety = 38; // zealot piety start
+
+                    // not sure this is necessary, but it is based on lugonu
+                    if (invo_skill(you.religion) != SK_NONE)
+                        you.skills[invo_skill(you.religion)]++;
+                }
+                // unclear whether this matters or is a good idea:
+                if (you.monster_instance->spells.size() > 0)
+                    you.skills[SK_SPELLCASTING]++;
             }
-            // unclear whether this matters or is a good idea:
-            if (you.monster_instance->spells.size() > 0)
-                you.skills[SK_SPELLCASTING]++;
+            invalidate_monster_skills();
         }
 
         if (you.species == MONS_BENNU || you.species == MONS_SPRIGGAN_RIDER)
@@ -325,9 +398,30 @@ namespace species
             if (!player_genus) // felids are already taken care of
                 result[SK_UNARMED_COMBAT] += 1;
         }
+        else if (mons_class_is_animated_weapon(you.species))
+        {
+            item_def *def_weap = you.monster_instance->get_defining_object();
+            ASSERT(def_weap);
+            const skill_type anim_sk = item_attack_skill(
+                                *def_weap);
+            ASSERT(anim_sk != SK_NONE);
+            for (int sk = 0; sk < NUM_SKILLS; ++sk)
+                if (anim_sk != sk && _skill_needs_usable_hands(static_cast<skill_type>(sk)))
+                    result[static_cast<skill_type>(sk)] = UNUSABLE_SKILL;
+            if (!is_range_weapon(*def_weap))
+                result[SK_UNARMED_COMBAT] = UNUSABLE_SKILL;
+
+            result[anim_sk] = 3;
+        }
+
         if (you_can_wear(EQ_BODY_ARMOUR) == MB_FALSE)
         {
             result[SK_ARMOUR] = UNUSABLE_SKILL;
+            result[SK_SHIELDS] = UNUSABLE_SKILL;
+        }
+        else if (you.species == MONS_ANIMATED_ARMOUR)
+        {
+            result[SK_ARMOUR] = 3; // armour should be good at armouring, right?
             result[SK_SHIELDS] = UNUSABLE_SKILL;
         }
 

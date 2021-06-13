@@ -515,6 +515,14 @@ item_def *monster::get_defining_object() const
 {
     // could ASSERT on the inventory checks, but wizmode placement doesn't
     // really guarantee these items
+    if (is_player_proxy())
+    {
+        const auto slot = mons_class_is_animated_weapon(you.species)
+            ? EQ_WEAPON
+            : EQ_BODY_ARMOUR; // MONS_ANIMATED_ARMOUR
+        ASSERT(you.slot_item(slot, false));
+        return you.slot_item(slot);
+    }
     if (mons_class_is_animated_weapon(type) && inv[MSLOT_WEAPON] != NON_ITEM)
         return &env.item[inv[MSLOT_WEAPON]];
     else if (type == MONS_ANIMATED_ARMOUR && inv[MSLOT_ARMOUR] != NON_ITEM)

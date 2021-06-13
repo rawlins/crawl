@@ -547,7 +547,7 @@ monster_info::monster_info(const monster* m, int milev)
     if (testbits(m->flags, MF_SPECTRALISED))
         mb.set(MB_SPECTRALISED);
 
-    if (milev <= MILEV_NAME)
+    if (milev <= MILEV_NAME || m->is_player_proxy())
     {
         if (mons_class_is_animated_weapon(type))
         {
@@ -568,7 +568,8 @@ monster_info::monster_info(const monster* m, int milev)
             inv[MSLOT_ARMOUR].reset(new item_def(
                 get_item_known_info(*m->get_defining_object())));
         }
-        return;
+        if (milev <= MILEV_NAME)
+            return;
     }
 
     holi = m->holiness();
@@ -1707,6 +1708,7 @@ void get_monster_info(vector<monster_info>& mons)
         if (mons_is_threatening(*mon)
             || mon->is_child_tentacle())
         {
+            dprf("info for %s", mon->name(DESC_PLAIN, true).c_str());
             mons.emplace_back(mon);
         }
     }

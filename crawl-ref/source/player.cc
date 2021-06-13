@@ -747,6 +747,11 @@ maybe_bool you_can_wear(equipment_type eq, bool temp)
     if (temp && !get_form()->slot_available(eq))
         return MB_FALSE;
 
+    if (mons_class_is_animated_weapon(you.species) && eq == EQ_WEAPON)
+        return MB_MAYBE;
+    else if (you.species == MONS_ANIMATED_ARMOUR && eq == EQ_BODY_ARMOUR)
+        return MB_MAYBE;
+
     // handles incorrect ring slots vs species
     if (species::bans_eq(you.species, eq))
         return MB_FALSE;
@@ -817,7 +822,7 @@ maybe_bool you_can_wear(equipment_type eq, bool temp)
 
     case EQ_BODY_ARMOUR:
         // Assume that anything that can wear any armour at all can wear an
-        // animal skin. (TODO: mainline uses robes, maybe because there are
+        // animal skin. (TODO: regular dcss uses robes, maybe because there are
         // no giant player species? But why are robes restricted to big?)
         // and that anything that can wear CPA can wear all armour.
         dummy.sub_type = ARM_CRYSTAL_PLATE_ARMOUR;
@@ -8292,6 +8297,11 @@ string player::species_appellation(bool include_job, bool article) const
         if (include_job)
             r = r + " " + get_job_name(you.char_class);
     }
+
+    // for animated artefacts, cut off the inscriptions
+    if (mons_class_is_animated_object(you.species))
+        r = split_string(" {", r, false, true, 1)[0];
+
     return r;
 }
 

@@ -43,6 +43,7 @@
 #include "shopping.h"
 #include "showsymb.h"
 #include "skills.h"
+#include "species-monster.h"
 #include "spl-book.h"
 #include "spl-goditem.h"
 #include "state.h"
@@ -252,7 +253,9 @@ string item_def::name(description_level_type descrip, bool terse, bool ident,
                 switch (eq)
                 {
                 case EQ_WEAPON:
-                    if (is_weapon(*this))
+                    if (mons_class_is_animated_weapon(you.species))
+                        buff << " (you)";
+                    else if (is_weapon(*this))
                         buff << " (weapon)";
                     else if (you.has_mutation(MUT_NO_GRASPING))
                         buff << " (in mouth)";
@@ -2771,6 +2774,9 @@ bool is_useless_item(const item_def &item, bool temp, bool ident)
     switch (item.base_type)
     {
     case OBJ_WEAPONS:
+        if (mons_class_is_animated_weapon(you.species))
+            return !species::animated_object_check(&item);
+
         if (you.has_mutation(MUT_NO_GRASPING))
             return true;
 
@@ -2802,6 +2808,15 @@ bool is_useless_item(const item_def &item, bool temp, bool ident)
             return false;
         }
 
+        if (mons_class_is_animated_weapon(you.species))
+        {
+            // hacky: treat all ammo as potentially useful until the player
+            // is assigned a weapon during player setup
+            return you.equip[EQ_WEAPON] >= 0
+                && is_launched(&you, &you.inv[you.equip[EQ_WEAPON]], item)
+                        != launch_retval::LAUNCHED;
+        }
+
         // Save for the above spell, all missiles are useless for felids.
         if (you.has_mutation(MUT_NO_GRASPING))
             return true;
@@ -2820,6 +2835,9 @@ bool is_useless_item(const item_def &item, bool temp, bool ident)
         return false;
 
     case OBJ_ARMOUR:
+        if (you.species == MONS_ANIMATED_ARMOUR)
+            return !species::animated_object_check(&item);
+
         if (!can_wear_armour(item, false, true))
             return true;
 

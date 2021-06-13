@@ -20,6 +20,7 @@
 #include "jobs.h"
 #include "libutil.h"
 #include "macro.h"
+#include "mapdef.h"
 #include "maps.h"
 #include "menu.h"
 #include "mon-place.h"
@@ -545,12 +546,32 @@ static bool _disallow_mons_species(monster_type mt)
         || mt == WANDERING_MONSTER;
 }
 
-static monster_type _process_monster_spec(const string &specs)
+static bool _species_mspec_ok(mons_spec &ms)
+{
+    if (_disallow_mons_species(ms.type))
+        return false;
+
+    // we are going to disregard everything else in the mspec
+    if (ms.items.size() == 0)
+        return true;
+    // for now, only allow item specs for animated objects
+    if (!mons_class_is_animated_object(ms.type) && ms.items.size() > 0)
+        return false;
+
+    // validating specific animating items is handled in mapdef.cc,
+    // mons_list::parse_mons_spec
+
+    return true;
+}
+
+static mons_spec _process_monster_spec(const string &specs)
 {
     // based on wiz-mon.cc code
     mons_list mlist;
+    mons_spec result(MONS_NO_MONSTER);
     if (specs.size() < 3) // heuristic, can this be improved?
-        return MONS_NO_MONSTER;
+        return result;
+
     string err = mlist.add_mons(specs.c_str());
 
     if (!err.empty())
@@ -561,21 +582,28 @@ static monster_type _process_monster_spec(const string &specs)
                         get_monster_by_name(specs.c_str(), true), DESC_PLAIN));
     }
 
-    mons_spec mspec = mlist.get_monster(0);
-    if (_disallow_mons_species(mspec.type))
-        return MONS_NO_MONSTER;
+    result = mlist.get_monster(0);
+    if (!_species_mspec_ok(result))
+    {
+        result = mons_spec(MONS_NO_MONSTER);
+        return result;
+    }
+    result = mlist.get_monster(0);
 
-    return fixup_zombie_type(static_cast<monster_type>(mspec.type),
-                          mspec.monbase);
+    // XX check zombies etc
+    result.type = fixup_zombie_type(static_cast<monster_type>(result.type),
+                          result.monbase);
+
+    return result;
 }
 
-static monster_type _random_monster_spec()
+static monster_type _random_monster_type()
 {
     monster_type r = MONS_NO_MONSTER;
     for (int i = 0; i < 500; i++)
     {
         r = _process_monster_spec(mons_type_name(
-                static_cast<monster_type>(random2(NUM_MONSTERS)), DESC_PLAIN));
+                static_cast<monster_type>(random2(NUM_MONSTERS)), DESC_PLAIN)).type;
         if (!_disallow_mons_species(r))
             return r;
     }
@@ -583,15 +611,15 @@ static monster_type _random_monster_spec()
     return MONS_DWARF;
 }
 
-#define MAX_MONSTER_NAME_WIDTH 40
-monster_type choose_monster_species(monster_type quick_choice)
+#define MAX_MONSTER_NAME_WIDTH 60
+mons_spec choose_monster_species(monster_type quick_choice)
 {
     // TODO: use new ui things for this
     char buf[MAX_MONSTER_NAME_WIDTH + 1]; // FIXME: make line_reader handle widths
     buf[0] = '\0';
     resumable_line_reader reader(buf, sizeof(buf));
     string result_str;
-    monster_type result = MONS_NO_MONSTER;
+    mons_spec result(MONS_NO_MONSTER);
 
     bool done = false;
     bool good_name = false;
@@ -674,16 +702,17 @@ monster_type choose_monster_species(monster_type quick_choice)
             case '*':
                 reader.putkey(CK_END);
                 reader.putkey(CONTROL('U'));
-                result = _random_monster_spec();
-                reader.set_text(mons_type_name(result, DESC_PLAIN));
+                result.type = _random_monster_type();
+                // XX items
+                reader.set_text(mons_type_name(result.type, DESC_PLAIN));
                 // TODO: deduplicate code
                 monster_txt->set_text(string("Selected: ") +
-                            uppercase_first(mons_type_name(result, DESC_PLAIN)));
+                            uppercase_first(mons_type_name(result.type, DESC_PLAIN)));
                 ok_switcher->current() = 0;
                 break;
             case '\t':
                 done = true;
-                result = quick_choice;
+                result.type = quick_choice;
                 break;
 
             case CK_ESCAPE:
@@ -701,10 +730,17 @@ monster_type choose_monster_species(monster_type quick_choice)
         result_str = buf;
         trim_string(result_str);
         result = _process_monster_spec(result_str);
-        good_name = result != MONS_NO_MONSTER;
-        monster_txt->set_text(good_name ?
-                    string("Selected: ") +
-                    uppercase_first(mons_type_name(result, DESC_PLAIN)) : "");
+        good_name = result.type != MONS_NO_MONSTER;
+        if (good_name)
+        {
+            string txt = "Selected: " + uppercase_first(mons_type_name(result.type, DESC_PLAIN));
+            if (result.items.size() > 0)
+                txt += "     Item: " + result.items.get_item(0).original_spec;
+            monster_txt->set_text(txt);
+        }
+        else
+            monster_txt->set_text("");
+
         ok_switcher->current() = good_name ? 0 : 1;
         return true;
     });
@@ -1209,6 +1245,7 @@ bool choose_game(newgame_def& ng, newgame_def& choice,
     ng.seed = choice.seed;
     ng.pregenerate = choice.pregenerate;
     ng.monster_species = choice.monster_species;
+    ng.monster_item_override = choice.monster_item_override;
 
 #ifndef DGAMELAUNCH
     // New: pick name _after_ character choices.
@@ -1816,10 +1853,14 @@ static void _prompt_choice(int choice_type, newgame_def& ng, newgame_def& ng_cho
 {
     if (ng.species == SP_MONSTER || ng.job == JOB_MONSTER)
     {
-        ng_choice.monster_species = choose_monster_species(
-                                                    defaults.monster_species);
+        // maybe allow more involved specs?
+        mons_spec ms = choose_monster_species(defaults.monster_species);
+        ng_choice.monster_species = ms.type;
         if (invalid_monster_type(ng_choice.monster_species))
             game_ended(game_exit::abort);
+        // take one item if it is there and has passed the tests
+        if (ms.items.size() > 0)
+            ng_choice.monster_item_override = ms.items.get_item(0).original_spec;
         ng_choice.species = SP_MONSTER;
         ng_choice.job = JOB_MONSTER;
         return;

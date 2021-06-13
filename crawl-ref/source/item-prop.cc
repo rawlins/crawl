@@ -1924,6 +1924,10 @@ bool is_throwable(const actor *actor, const item_def &wpn)
     if (wpn.base_type != OBJ_MISSILES)
         return false;
 
+    // unnecessary in normal game, but heads of some crashes during setup
+    if (actor && actor->is_player() && mons_class_is_animated_weapon(you.species))
+        return false;
+
     if (actor)
     {
         const size_type bodysize = actor->body_size();

@@ -18,6 +18,7 @@
 #include "item-use.h"
 #include "jobs.h"
 #include "libutil.h"
+#include "mapdef.h"
 #include "macro.h"
 #include "message.h"
 #include "misc.h" // frombool
@@ -122,8 +123,9 @@ void wizard_change_species()
         ? SP_MONSTER
         : species::from_str_loose(specs);
 
+    // TODO: does not support itemspecs for dancing items
     const mc_species outcome = sp == SP_MONSTER
-                        ? mc_species(choose_monster_species())
+                        ? mc_species(choose_monster_species().type)
                         : mc_species(sp);
 
     if (!outcome.is_valid())

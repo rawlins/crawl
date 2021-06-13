@@ -4825,6 +4825,7 @@ item_spec &item_spec::operator = (const item_spec &other)
         acquirement_source = other.acquirement_source;
         place = other.place;
         props = other.props;
+        original_spec = other.original_spec;
 
         release_corpse_monster_spec();
         if (other._corpse_monster_spec)
@@ -4910,6 +4911,7 @@ item_spec item_list::pick_item(item_spec_slot &slot)
         if (x_chance_in_y(weight, cumulative += weight))
             pick = spec;
     }
+    pick.original_spec = slot.original_spec;
 
     if (slot.fix_slot)
     {
@@ -4945,6 +4947,7 @@ string item_list::add_item(const string &spec, bool fix)
             pick_item(sp);
         }
 
+        sp.original_spec = spec;
         items.push_back(sp);
     }
 

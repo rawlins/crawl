@@ -30,6 +30,7 @@
 #include "player-stats.h"
 #include "religion.h"
 #include "species.h"
+#include "species-monster.h"
 #include "spl-damage.h"
 #include "state.h"
 #include "terrain.h"
@@ -349,7 +350,7 @@ item_def *player::weapon(int /* which_attack */) const
 // Give hands required to wield weapon.
 hands_reqd_type player::hands_reqd(const item_def &item, bool base) const
 {
-    if (you.has_mutation(MUT_QUADRUMANOUS))
+    if (you.has_mutation(MUT_QUADRUMANOUS) || mons_class_is_animated_weapon(you.species))
         return HANDS_ONE;
     else
         return actor::hands_reqd(item, base);
@@ -399,6 +400,9 @@ bool player::could_wield(const item_def &item, bool ignore_brand,
             mpr("That's too large and heavy for you to wield.");
         return false;
     }
+
+    if (mons_class_is_animated_weapon(you.species))
+        return species::animated_object_check(&item);
 
     // Most non-weapon objects can be wielded, though there's rarely a point
     if (!is_weapon(item))

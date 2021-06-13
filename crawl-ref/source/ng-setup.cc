@@ -562,7 +562,7 @@ static void _setup_generic(const newgame_def& ng,
     if (you.species == SP_MONSTER)
     {
         you.species = ng.monster_species;
-        species::setup_monster_player();
+        species::setup_monster_player(true, ng.monster_item_override);
     }
 
     // TODO: this gets overwritten in tags.cc, why is it even here?

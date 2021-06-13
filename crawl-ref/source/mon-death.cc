@@ -1711,14 +1711,18 @@ item_def* monster_die(monster& mons, killer_type killer,
         }
 
         int w_idx = mons.inv[MSLOT_WEAPON];
-        ASSERT(w_idx != NON_ITEM);
+
+        // this is a good ASSERT but it's hard to maintain with player monster
+        // instantiation
+        //ASSERT(w_idx != NON_ITEM);
+        const bool missing_item = w_idx == NON_ITEM;
 
         // XXX: This can probably become mons.is_summoned(): there's no
         // feasible way for a dancing weapon to "drop" it's weapon and somehow
         // gain a summoned one, or vice versa.
-        bool summoned_it = env.item[w_idx].flags & ISFLAG_SUMMONED;
+        bool summoned_it = !missing_item && env.item[w_idx].flags & ISFLAG_SUMMONED;
 
-        if (!silent && !hard_reset && !was_banished)
+        if (!silent && !hard_reset && !was_banished && !missing_item)
         {
             // Under Gozag, permanent dancing weapons get turned to gold.
             if (!summoned_it
@@ -1738,7 +1742,7 @@ item_def* monster_die(monster& mons, killer_type killer,
         }
 
         if (was_banished && !summoned_it && !hard_reset
-            && mons.has_ench(ENCH_ABJ))
+            && mons.has_ench(ENCH_ABJ) && !missing_item)
         {
             if (is_unrandom_artefact(env.item[w_idx]))
                 set_unique_item_status(env.item[w_idx], UNIQ_LOST_IN_ABYSS);

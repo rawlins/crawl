@@ -39,6 +39,7 @@ struct newgame_def
     monster_type monster_species;
 
     weapon_type weapon;
+    string monster_item_override;
 
     // Only relevant for character choice, where the entire
     // character was randomly picked in one step.

@@ -744,7 +744,7 @@ namespace quiver
 
         virtual bool is_valid() const override
         {
-            if (you.has_mutation(MUT_NO_GRASPING))
+            if (you.has_mutation(MUT_NO_GRASPING) && !mons_class_is_animated_weapon(you.species))
                 return false;
             if (ammo_slot < 0 || ammo_slot >= ENDOFPACK)
                 return false;
@@ -1959,7 +1959,7 @@ namespace quiver
     shared_ptr<action> find_action_from_launcher(const item_def *item)
     {
         // Felids have no use for launchers or ammo.
-        if (you.has_mutation(MUT_NO_GRASPING))
+        if (you.has_mutation(MUT_NO_GRASPING) && !mons_class_is_animated_weapon(you.species))
             return make_shared<ammo_action>(-1);
 
         int slot = -1;

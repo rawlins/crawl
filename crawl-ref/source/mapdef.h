@@ -588,6 +588,8 @@ public:
     const mons_spec &corpse_monster_spec() const;
     void set_corpse_monster_spec(const mons_spec &spec);
 
+    string original_spec;
+
 private:
     mons_spec *_corpse_monster_spec;
 
@@ -620,6 +622,7 @@ private:
     {
         item_spec_list ilist;
         bool fix_slot;
+        string original_spec;
 
         item_spec_slot() : ilist(), fix_slot(false)
         {
