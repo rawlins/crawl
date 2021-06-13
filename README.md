@@ -1,14 +1,14 @@
-# Monstercrawl
+# MonsterCrawl
 
 Developer: advil / advil at dcss dot io
 
-Monstercrawl is an in-development fork of Dungeon Crawl Stone Soup that lets
+MonsterCrawl is an in-development fork of Dungeon Crawl Stone Soup that lets
 monster species all be playable. This is basically an experiment in two things:
-extreme player/monster symmetry, and (more) procedural species generation.
+extreme player/monster symmetry, and procedural species generation.
 The current version is extremely pre-release, so use at your own risk; there's
 lots of tuning remaining before this is even an alpha.
 
-General changes:
+## General changes
 
 * Any monster species that can be placed can be chosen at character selection.
   In DCSS, unique monsters are implemented as their own species, so you can
@@ -47,11 +47,39 @@ Major TODOs:
    except for monsters that inherit player species aptitudes.
  * TBD whether progression should be involved in monster abilities.
  * Lots of specific monster cases still in progress, too many to list.
+ * Place at least some relevant species with a friendly band on D:1
  * ...
 
 Long-term possibilities (not for the first release):
  * dungeon generation modifiers to make some corner cases more playable, e.g.
    lava or water dungeon.
+
+## Specific monster species notes
+
+These notes focus on species details that are harder to predict from knowledge
+of a crawl monster, so plenty of species work and aren't mentioned!
+
+**Animated objects** (dancing weapons, spectral weapons, animated armour): The
+animating object is in the player's inventory and cannot be unwielded /
+removed. Initial weapon choice is randomized; for dancing weapons this uses
+the standard placement types, and for spectral weapons / animated armour,
+which don't normally place, the choice is very random, with some bias towards
+a fairly good item (artefacts are possible). Because this could cause people
+to waste a lot of time start-scumming, the monster selection screen
+exceptionally accepts an item specification for these species. For example,
+`dancing weapon ; singing sword` is a valid monster name. Randomized specs
+will work too, provided they place the right item type. (Partial name matching
+doesn't apply to the item choice, so you will need to use an exact item
+specification.)
+
+**Bai Suzhen**: A player Bai Suzhen's transformation is not permanent, but uses
+a version of dragonform with the Bai Suzhen dragon properties. (To play as the
+dragon only, start as "Bai Suzhen dragon".)
+
+**Spriggan riders**: the hornet always dies first, so if a Spriggan Rider
+player dies, they become a regular Spriggan.
+
+---
 
 **Original DCSS README follows**
 
