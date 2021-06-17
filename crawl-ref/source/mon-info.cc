@@ -1708,7 +1708,6 @@ void get_monster_info(vector<monster_info>& mons)
         if (mons_is_threatening(*mon)
             || mon->is_child_tentacle())
         {
-            dprf("info for %s", mon->name(DESC_PLAIN, true).c_str());
             mons.emplace_back(mon);
         }
     }
