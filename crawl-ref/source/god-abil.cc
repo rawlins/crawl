@@ -3957,6 +3957,8 @@ static int _piety_for_skill_by_sacrifice(ability_type sacrifice)
         // No one-handed bows.
         if (!you.has_innate_mutation(MUT_QUADRUMANOUS))
             piety_gain += _piety_for_skill(SK_BOWS);
+        if (you.has_mutation(MUT_DUAL_WIELDING))
+            piety_gain = (piety_gain * 15) / 10; // maybe even x2?
     }
     return piety_gain;
 }
@@ -4401,6 +4403,13 @@ static void _extra_sacrifice_code(ability_type sac)
                     weapon->name(DESC_YOUR).c_str());
                 unequip_item(EQ_WEAPON);
             }
+        }
+
+        if (you.dual_wielding())
+        {
+            // could remove mutation at this point?
+            mprf("You can no longer hold two weapons!");
+            unequip_item(EQ_ALT_WEAPON);
         }
 
         // And one ring

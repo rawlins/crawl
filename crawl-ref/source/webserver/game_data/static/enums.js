@@ -54,6 +54,7 @@ define(function () {
     exports.equip = {};
     val = 0;
     exports.equip.WEAPON = val++;
+    exports.equip.ALT_WEAPON = val++;
     exports.equip.CLOAK = val++;
     exports.equip.HELMET = val++;
     exports.equip.GLOVES = val++;

@@ -6,6 +6,7 @@ enum equipment_type
 
     EQ_WEAPON,
     EQ_FIRST_EQUIP = EQ_WEAPON,
+    EQ_ALT_WEAPON,
     EQ_CLOAK,
     EQ_HELMET,
     EQ_GLOVES,
@@ -38,4 +39,5 @@ enum equipment_type
     EQ_RINGS,                          // check both rings
     EQ_RINGS_PLUS,                     // check both rings and sum plus
     EQ_ALL_ARMOUR,                     // check all armour types
+    EQ_ALL_WEAPONS,
 };

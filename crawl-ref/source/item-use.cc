@@ -383,7 +383,6 @@ bool can_wield(const item_def *weapon, bool say_reason,
                bool ignore_temporary_disability, bool unwield, bool only_known)
 {
 #define SAY(x) {if (say_reason) { x; }}
-    dprf("checking can_wield");
     if (mons_class_is_animated_weapon(you.species))
     {
         if (unwield)
@@ -468,6 +467,12 @@ bool can_wield(const item_def *weapon, bool say_reason,
     // All non-weapons only need a shield check.
     if (weapon->base_type != OBJ_WEAPONS)
     {
+        if (!ignore_temporary_disability && you.has_mutation(MUT_DUAL_WIELDING)
+            && (you.weapon(0) || you.weapon(1)))
+        {
+            SAY(mpr("You can't dual-wield that!"));
+            return false;
+        }
         if (!ignore_temporary_disability && is_shield_incompatible(*weapon))
         {
             SAY(mpr("You can't wield that with a shield."));
@@ -583,6 +588,118 @@ static int _get_item_slot_maybe_with_move(const item_def &item)
         ? item.link : _move_item_from_floor_to_inv(item);
     return ret;
 }
+
+static equipment_type _prompt_weapon_to_unwield(bool intermediate)
+{
+    if (!you.dual_wielding())
+        return EQ_NONE;
+
+    clear_messages();
+
+    if (intermediate)
+        mprf(MSGCH_PROMPT, "You are already wielding two weapons.");
+    mprf(MSGCH_PROMPT,
+         "Unwield which weapon? (<w>Esc</w> to cancel, <w>*</w> for both)");
+    mprf(MSGCH_PROMPT, "  %s", you.weapon(0)->name(DESC_INVENTORY).c_str());
+    mprf(MSGCH_PROMPT, "  %s", you.weapon(1)->name(DESC_INVENTORY).c_str());
+    flush_prev_message();
+
+    equipment_type eqslot = EQ_NONE;
+
+    mouse_control mc(MOUSE_MODE_PROMPT);
+    int c;
+    do
+    {
+        c = getchm();
+        if (c == index_to_letter(you.weapon(0)->link))
+            eqslot = EQ_WEAPON;
+        else if (c == index_to_letter(you.weapon(1)->link))
+            eqslot = EQ_ALT_WEAPON;
+        else if (c == '*')
+            eqslot = EQ_ALL_WEAPONS;
+
+    } while (!key_is_escape(c) && c != ' ' && eqslot == EQ_NONE);
+
+    clear_messages();
+
+    return eqslot;
+}
+
+static bool _do_unwield(equipment_type e, bool show_weff_messages,
+                  bool show_unwield_msg, bool adjust_time_taken)
+{
+    if (e == EQ_ALL_WEAPONS && you.dual_wielding())
+    {
+        if (!_do_unwield(EQ_ALT_WEAPON, show_weff_messages,
+            false, adjust_time_taken))
+        {
+            return false;
+        }
+        if (!_do_unwield(EQ_WEAPON, show_weff_messages,
+            show_unwield_msg, false))
+        {
+            return false;
+        }
+        // does this make sense?
+        if (adjust_time_taken)
+            you.time_taken *= 2;
+        return true;
+    }
+    // for non-dual-wielding, EQ_ALL_WEAPONS should always give EQ_WEAPON, since
+    // it's not supposed to be possible to have a single weapon only in the alt
+    // slot.
+    const int wno = e == EQ_ALT_WEAPON ? 1 : 0;
+
+    if (const item_def* wpn = you.weapon(wno))
+    {
+        bool penance = false;
+        // Can we safely unwield this item?
+        if (needs_handle_warning(*wpn, OPER_WIELD, penance))
+        {
+            string prompt =
+                "Really unwield " + wpn->name(DESC_INVENTORY) + "?";
+            if (penance)
+                prompt += " This could place you under penance!";
+
+            if (!yesno(prompt.c_str(), false, 'n'))
+            {
+                canned_msg(MSG_OK);
+                return false;
+            }
+        }
+
+        // check if you'd get stat-zeroed
+        if (!_safe_to_remove_or_wear(*wpn, true))
+            return false;
+
+        if (!unwield_item(show_weff_messages, wno))
+            return false;
+
+        if (show_unwield_msg)
+        {
+#ifdef USE_SOUND
+            parse_sound(WIELD_NOTHING_SOUND);
+#endif
+            if (you.weapon(0)) // unwield moves the remaining weapon to slot 0
+                mprf("Unwielded %s.", wpn->name(DESC_INVENTORY).c_str());
+            else
+                canned_msg(MSG_EMPTY_HANDED_NOW);
+        }
+
+        // Switching to bare hands is extra fast.
+        you.turn_is_over = true;
+        if (adjust_time_taken)
+        {
+            you.time_taken *= 3;
+            you.time_taken /= 10;
+        }
+    }
+    else
+        canned_msg(MSG_EMPTY_HANDED_ALREADY);
+
+    return true;
+}
+
 /**
  * @param auto_wield false if this was initiated by the wield weapon command (w)
  *      true otherwise (e.g. switching between ranged and melee with the
@@ -655,7 +772,8 @@ bool wield_weapon(bool auto_wield, int slot, bool show_weff_messages,
     // unwielding. (TODO: better ui?)
     you.received_weapon_warning = false;
 
-    if (to_wield && to_wield == you.weapon())
+    if (to_wield && (to_wield == you.weapon()
+        || you.dual_wielding() && to_wield == you.weapon(1)))
     {
         if (Options.equip_unequip)
             to_wield = nullptr;
@@ -668,51 +786,18 @@ bool wield_weapon(bool auto_wield, int slot, bool show_weff_messages,
 
     if (!to_wield)
     {
-        if (const item_def* wpn = you.weapon())
+        auto unwield_slot = EQ_ALL_WEAPONS;
+        if (you.dual_wielding())
         {
-            bool penance = false;
-            // Can we safely unwield this item?
-            if (needs_handle_warning(*wpn, OPER_WIELD, penance))
+            unwield_slot = _prompt_weapon_to_unwield(false);
+            if (unwield_slot == EQ_NONE)
             {
-                string prompt =
-                    "Really unwield " + wpn->name(DESC_INVENTORY) + "?";
-                if (penance)
-                    prompt += " This could place you under penance!";
-
-                if (!yesno(prompt.c_str(), false, 'n'))
-                {
-                    canned_msg(MSG_OK);
-                    return false;
-                }
-            }
-
-            // check if you'd get stat-zeroed
-            if (!_safe_to_remove_or_wear(*wpn, true))
+                canned_msg(MSG_OK);
                 return false;
-
-            if (!unwield_item(show_weff_messages))
-                return false;
-
-            if (show_unwield_msg)
-            {
-#ifdef USE_SOUND
-                parse_sound(WIELD_NOTHING_SOUND);
-#endif
-                canned_msg(MSG_EMPTY_HANDED_NOW);
-            }
-
-            // Switching to bare hands is extra fast.
-            you.turn_is_over = true;
-            if (adjust_time_taken)
-            {
-                you.time_taken *= 3;
-                you.time_taken /= 10;
             }
         }
-        else
-            canned_msg(MSG_EMPTY_HANDED_ALREADY);
-
-        return true;
+        return _do_unwield(unwield_slot, show_weff_messages,
+            show_unwield_msg, adjust_time_taken);
     }
 
     // By now we're sure we're swapping to a real weapon, not bare hands
@@ -748,16 +833,54 @@ bool wield_weapon(bool auto_wield, int slot, bool show_weff_messages,
         return false;
     }
 
-    // Unwield any old weapon.
     if (you.weapon())
     {
-        if (unwield_item(show_weff_messages))
+        auto unwield_slot = EQ_NONE;
+        // are your hands full?
+        if (!you.has_mutation(MUT_DUAL_WIELDING)
+            || you.has_mutation(MUT_MISSING_HAND) // no more dual wielding :-(
+            || you.shield()
+            // monsters can't dual-wield launchers (and it would break too many
+            // things anyways)
+            || is_range_weapon(*you.weapon()))
         {
-            // Enable skills so they can be re-disabled later
-            update_can_currently_train();
+            // The player is currently wielding exactly one weapon.
+            unwield_slot = EQ_WEAPON;
         }
-        else
+        else if (is_range_weapon(new_wpn))
+        {
+            // The player can dual-wield, but not with the new weapon. No need
+            // to prompt in this case, anything currently wielded must be
+            // unwielded.
+            unwield_slot = EQ_ALL_WEAPONS;
+        }
+        else if (you.dual_wielding())
+        {
+            // At this point, we are trying to wield a non-launcher
+            // and the player has two weapons in hand. So only one weapon needs
+            // to be replaced; prompt.
+            // There's intentionally no handedness check here, because
+            // dual-wielding monsters actually don't have one. This is pretty
+            // goofy, but so be it.
+            // wierdly, nothing prevents a monster from dual-wielding gyre
+            // and gimble with something else, so I guess I'm not going to
+            // change that here? The G+G double attack seems to work ok.
+            unwield_slot = _prompt_weapon_to_unwield(true);
+            if (unwield_slot == EQ_NONE)
+            {
+                canned_msg(MSG_OK);
+                return false;
+            }
+        }
+
+        if (unwield_slot != EQ_NONE
+            && !_do_unwield(unwield_slot, show_weff_messages, false, false))
+        {
             return false;
+        }
+
+        if (unwield_slot != EQ_NONE)
+            update_can_currently_train(); // something changed
     }
 
     const unsigned int old_talents = your_talents(false).size();
@@ -772,7 +895,11 @@ bool wield_weapon(bool auto_wield, int slot, bool show_weff_messages,
     // player chose something from the floor. So use item_slot from here on.
 
     // Go ahead and wield the weapon.
-    equip_item(EQ_WEAPON, item_slot, show_weff_messages);
+    auto eq_slot = EQ_WEAPON;
+    if (you.has_mutation(MUT_DUAL_WIELDING) && you.weapon())
+        eq_slot = EQ_ALT_WEAPON;
+
+    equip_item(eq_slot, item_slot, show_weff_messages);
 
     if (show_wield_msg)
     {
@@ -939,7 +1066,8 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
 
     if (!ignore_temporary && you.weapon()
         && is_shield(item)
-        && is_shield_incompatible(*you.weapon(), &item))
+        && (is_shield_incompatible(*you.weapon(), &item)
+            || you.dual_wielding()))
     {
         if (verbose)
         {

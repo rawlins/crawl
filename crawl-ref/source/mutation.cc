@@ -422,6 +422,9 @@ mutation_activity_type mutation_activity_level(mutation_type mut)
     if (mut == MUT_DEMONIC_GUARDIAN && you.get_mutation_level(MUT_NO_LOVE))
         return mutation_activity_type::INACTIVE;
 
+    if (mut == MUT_DUAL_WIELDING && you.has_mutation(MUT_MISSING_HAND))
+        return mutation_activity_type::INACTIVE;
+
     if (mut == MUT_NIMBLE_SWIMMER)
     {
         if (feat_is_water(env.grid(you.pos())))

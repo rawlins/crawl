@@ -172,10 +172,14 @@ function ($, comm, enums, map_knowledge, messages, options, util) {
         return elem;
     }
 
-    function wielded_weapon()
+    function wielded_weapon(alt_weapon=false)
     {
         var elem;
-        var wielded = player.equip[enums.equip.WEAPON];
+        var wielded;
+        if (alt_weapon)
+            wielded = player.equip[enums.equip.ALT_WEAPON];
+        else
+            wielded = player.equip[enums.equip.WEAPON];
         if (wielded == -1)
         {
             elem = $("<span>");
@@ -429,6 +433,16 @@ function ($, comm, enums, map_knowledge, messages, options, util) {
         $("#stats_weapon_letter").text(
             index_to_letter(player.equip[enums.equip.WEAPON]) + ")");
         $("#stats_weapon").html(wielded_weapon());
+
+        if (player.equip[enums.equip.ALT_WEAPON] >= 0)
+        {
+            $("#stats_alt_weapon_letter").text(
+                index_to_letter(player.equip[enums.equip.ALT_WEAPON]) + ")")
+            $("#stats_alt_weapon").html(wielded_weapon(true));
+            $("#stats_alt_weapon_div").show();
+        }
+        else
+            $("#stats_alt_weapon_div").hide();
 
         // show launcher ammo to the right of the weapon, if it isn't currently
         // shown in the regular quiver

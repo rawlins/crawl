@@ -264,7 +264,9 @@ bool fight_melee(actor *attacker, actor *defender, bool *did_hit, bool simu)
             return true; // Is this right? We did take time, but we didn't melee
         }
 
-        if (you.species.is_genus_monster())
+        // this would not work for pure player dual wielding, it relies on the
+        // monster data
+        if (you.species.is_genus_monster() || you.dual_wielding())
         {
             // genus monster attacks are handled as true multi-attacks. For
             // monsters with a player species genus, we use aux attacks

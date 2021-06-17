@@ -196,9 +196,9 @@ size_type player::body_size(size_part_type psize, bool base) const
     }
 }
 
-int player::damage_type(int)
+int player::damage_type(int attack)
 {
-    if (const item_def* wp = weapon())
+    if (const item_def* wp = weapon(attack))
         return get_vorpal_type(*wp);
     else if (form == transformation::blade_hands)
         return DVORP_SLICING;
@@ -213,15 +213,16 @@ int player::damage_type(int)
 /**
  * What weapon brand does the player attack with in melee?
  */
-brand_type player::damage_brand(int)
+brand_type player::damage_brand(int attack)
 {
     // player monsters handled in attack classes
     // confusing touch always overrides
     if (duration[DUR_CONFUSING_TOUCH])
         return SPWPN_CONFUSE;
 
-    const int wpn = equip[EQ_WEAPON];
-    if (wpn != -1 && !melded[EQ_WEAPON])
+    const auto slot = attack > 0 ? EQ_ALT_WEAPON : EQ_WEAPON;
+    const int wpn = equip[slot];
+    if (wpn != -1 && !melded[slot])
     {
         if (is_range_weapon(inv[wpn]))
             return SPWPN_NORMAL; // XXX: check !is_melee_weapon instead?
@@ -285,6 +286,22 @@ random_var player::attack_delay(const item_def *projectile, bool rescale) const
         attk_delay -= div_rand_round(random_var(wpn_sklev), DELAY_SCALE);
         if (get_weapon_brand(*weap) == SPWPN_SPEED)
             attk_delay = div_rand_round(attk_delay * 2, 3);
+        if (you.dual_wielding())
+        {
+            const item_def* other_weap = weapon(1);
+            const skill_type other_wpn_skill = item_attack_skill(*other_weap);
+            // Cap skill contribution to mindelay skill, so that rounding
+            // doesn't make speed brand benefit from higher skill.
+            const int other_wpn_sklev = min(you.skill(other_wpn_skill, 10),
+                                      10 * weapon_min_delay_skill(*other_weap));
+
+            attk_delay = attk_delay + random_var(property(*other_weap, PWPN_SPEED));
+            attk_delay -= div_rand_round(random_var(other_wpn_sklev), DELAY_SCALE);
+            if (get_weapon_brand(*other_weap) == SPWPN_SPEED)
+                attk_delay = div_rand_round(attk_delay * 2, 3);
+            // average the two? I guess an alternative would be argmax
+            attk_delay = div_rand_round(attk_delay, 2);
+        }
     }
 
     if (projectile && species == SP_MONSTER)
@@ -339,10 +356,19 @@ item_def *player::slot_item(equipment_type eq, bool include_melded) const
 }
 
 // Returns the item in the player's weapon slot.
-item_def *player::weapon(int /* which_attack */) const
+item_def *player::weapon(int which_attack) const
 {
     if (melded[EQ_WEAPON])
         return nullptr;
+
+    if (which_attack > 1)
+        which_attack &= 1; // imported from monster logic
+
+    // n.b. the default value for which_attack is -1. On a monster, 0 or -1
+    // causes a random choice between the two attacks, for reasons I can't
+    // figure out. Here it just picks EQ_WEAPON.
+    if (you.has_mutation(MUT_DUAL_WIELDING) && which_attack == 1)
+        return slot_item(EQ_ALT_WEAPON, false);
 
     return slot_item(EQ_WEAPON, false);
 }

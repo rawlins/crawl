@@ -6939,9 +6939,23 @@ bool player::has_usable_offhand() const
         return false;
     if (shield())
         return false;
+    if (you.has_mutation(MUT_DUAL_WIELDING))
+    {
+        // dual wielders have a usable second hand if either weapon slot is
+        // empty; no hands_reqd check at all. (Note that this isn't used for
+        // aux punch purposes, though.)
+        return !slot_item(EQ_WEAPON) || !slot_item(EQ_ALT_WEAPON);
+    }
 
     const item_def* wp = slot_item(EQ_WEAPON);
     return !wp || hands_reqd(*wp) != HANDS_TWO;
+}
+
+bool player::dual_wielding() const
+{
+    return you.has_mutation(MUT_DUAL_WIELDING)
+        && you.weapon(0) && you.weapon(1)
+        && !you.melded[EQ_WEAPON]; // if weap is melded, so should be alt weap
 }
 
 bool player::has_usable_tentacle() const

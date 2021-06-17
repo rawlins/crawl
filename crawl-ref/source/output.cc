@@ -917,14 +917,14 @@ static void _print_stats_ev(int x, int y)
  *
  * @return     A colour enum for the player's weapon.
  */
-static int _wpn_name_colour()
+static int _wpn_name_colour(int n=0)
 {
     if (you.duration[DUR_CORROSION])
         return RED;
 
-    if (you.weapon())
+    if (you.weapon(n))
     {
-        const item_def& wpn = *you.weapon();
+        const item_def& wpn = *you.weapon(n);
 
         const string prefix = item_prefix(wpn);
         const int prefcol = menu_colour(wpn.name(DESC_INVENTORY), prefix, "stats");
@@ -941,7 +941,7 @@ static int _wpn_name_colour()
  *
  * @param y     The y-coordinate to print the description at.
  */
-static void _print_stats_wp(int y)
+static void _print_stats_wp(int y, int n=0)
 {
     string text;
     if (mouse_control::current_mode() == MOUSE_MODE_NORMAL
@@ -952,9 +952,9 @@ static void _print_stats_wp(int y)
 
     CGOTOXY(1, y, GOTO_STAT);
 
-    if (you.weapon())
+    if (you.weapon(n))
     {
-        item_def wpn = *you.weapon(); // copy
+        item_def wpn = *you.weapon(n); // copy
 
         if (you.duration[DUR_CORROSION] && wpn.base_type == OBJ_WEAPONS)
             wpn.plus -= 4 * you.props["corrosion_amount"].get_int();
@@ -965,7 +965,7 @@ static void _print_stats_wp(int y)
         text = you.unarmed_attack_name();
 
     textcolour(HUD_CAPTION_COLOUR);
-    const char slot_letter = you.weapon() ? index_to_letter(you.weapon()->link)
+    const char slot_letter = you.weapon(n) ? index_to_letter(you.weapon(n)->link)
                                           : '-';
     const string slot_name = make_stringf("%c) ", slot_letter);
     CPRINTF("%s", slot_name.c_str());
@@ -974,7 +974,7 @@ static void _print_stats_wp(int y)
 
     // If there is a launcher, but something unrelated is quivered, show the
     // launcher's ammo in the line with the weapon
-    if (you.weapon() && is_range_weapon(*you.weapon())
+    if (you.weapon(n) && is_range_weapon(*you.weapon(n))
         && *you.launcher_action.get() != *you.quiver_action.get())
     {
         formatted_string lammo;
@@ -1019,6 +1019,8 @@ static void _print_stats_qv(int y)
     const int max_width = crawl_view.hudsz.x - 4;
 #endif
     qdesc.chop(max_width, true).display();
+    if (max_width < crawl_view.hudsz.x)
+        CPRINTF("    "); // hacky, but clear after dual wielding switches
 
     you.redraw_quiver = false;
 }
@@ -1406,7 +1408,14 @@ void print_stats()
     }
 
     if (you.wield_change)
+    {
         _print_stats_wp(9 + yhack);
+        if (you.dual_wielding())
+            _print_stats_wp(10 + yhack, 1);
+    }
+
+    if (you.dual_wielding())
+        yhack++;
 
     if (you.redraw_quiver)
         _print_stats_qv(10 + yhack);
@@ -1840,7 +1849,7 @@ static string _itosym(int level, int max = 1, bool immune = false)
 
 static const char *s_equip_slot_names[] =
 {
-    "Weapon", "Cloak",  "Helmet", "Gloves", "Boots",
+    "Weapon", "Weapon", "Cloak",  "Helmet", "Gloves", "Boots",
     "Shield", "Armour", "Left Ring", "Right Ring", "Amulet",
     "First Ring", "Second Ring", "Third Ring", "Fourth Ring",
     "Fifth Ring", "Sixth Ring", "Seventh Ring", "Eighth Ring",

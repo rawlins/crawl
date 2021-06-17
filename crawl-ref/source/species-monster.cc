@@ -254,6 +254,8 @@ namespace species
                 item_def& item = you.inv[slot];
                 if (item.defined())
                 {
+                    // TODO: this is happening before species mutations are
+                    // set up, what does this break?
                     newgame_setup_item(item, slot);
                     item_skills(item, item_sks);
 
@@ -293,7 +295,6 @@ namespace species
 
                 if (!found_armour)
                 {
-                    dprf("no armour found");
                     you.skills[SK_DODGING]++;
                     you.skills[SK_STEALTH]++;
                 }
@@ -540,6 +541,8 @@ namespace species
             set_imut(MUT_NO_ARMOUR, 1);
             set_imut(MUT_NO_GRASPING, 1);
         }
+        if (mons_class_wields_two_weapons(species))
+            set_imut(MUT_DUAL_WIELDING, 1);
 
         // let this override base, e.g. for DE variants
         if (you.monster_instance->can_see_invisible())
@@ -632,7 +635,7 @@ namespace species
         if (you.heads() != 1)
             result.push_back(terse ? make_stringf("%d heads", you.heads()) : make_stringf("You have %d heads.", you.heads()));
 
-        if (!terse)
+        if (!terse && !you.has_mutation(MUT_DUAL_WIELDING))
         {
             // sort of hacky...
             // TODO: this is pretty clumsy for multi-attack monsters

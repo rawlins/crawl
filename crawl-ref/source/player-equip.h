@@ -15,7 +15,7 @@ bool unmeld_slot(equipment_type slot);
 void equip_effect(equipment_type slot, int item_slot, bool unmeld, bool msg);
 void unequip_effect(equipment_type slot, int item_slot, bool meld, bool msg);
 
-bool unwield_item(bool showMsgs = true);
+bool unwield_item(bool showMsgs = true, bool alt_slot=false);
 
 bool acrobat_boost_active();
 

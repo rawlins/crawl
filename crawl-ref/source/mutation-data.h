@@ -2228,6 +2228,15 @@ static const mutation_def mut_data[] =
     {"The shadows grow bolder once more.", "", ""},
 },
 
+{ MUT_DUAL_WIELDING, 0, 1, mutflag::good, false,
+  "dual-wielding",
+
+    {"You can wield two melee weapons at once.",
+      "", ""},
+    {"You can no longer dual-wield.", "", ""},
+    {"The can now dual-wield.", "", ""},
+},
+
 };
 
 static const mutation_category_def category_mut_data[] =

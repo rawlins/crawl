@@ -151,6 +151,11 @@ static void _assert_valid_slot(equipment_type eq, equipment_type slot)
 #ifdef ASSERTS
     if (eq == slot)
         return;
+    if (slot == EQ_ALT_WEAPON)
+    {
+        ASSERT(eq == EQ_WEAPON && you.has_mutation(MUT_DUAL_WIELDING));
+        return;
+    }
     ASSERT(eq == EQ_RINGS); // all other slots are unique
     equipment_type r1 = EQ_LEFT_RING, r2 = EQ_RIGHT_RING;
     if (species::arm_count(you.species) > 2)
@@ -181,7 +186,7 @@ void equip_effect(equipment_type slot, int item_slot, bool unmeld, bool msg)
 
     identify_item(item);
 
-    if (slot == EQ_WEAPON)
+    if (slot == EQ_WEAPON || slot == EQ_ALT_WEAPON)
         _equip_weapon_effect(item, msg, unmeld);
     else if (slot >= EQ_CLOAK && slot <= EQ_BODY_ARMOUR)
         _equip_armour_effect(item, unmeld, slot);
@@ -201,7 +206,7 @@ void unequip_effect(equipment_type slot, int item_slot, bool meld, bool msg)
 
     const interrupt_block block_meld_interrupts(meld);
 
-    if (slot == EQ_WEAPON)
+    if (slot == EQ_WEAPON || slot == EQ_ALT_WEAPON)
         _unequip_weapon_effect(item, msg, meld);
     else if (slot >= EQ_CLOAK && slot <= EQ_BODY_ARMOUR)
         _unequip_armour_effect(item, meld, slot);
@@ -1210,19 +1215,30 @@ static void _unequip_jewellery_effect(item_def &item, bool mesg, bool meld,
     calc_mp();
 }
 
-bool unwield_item(bool showMsgs)
+bool unwield_item(bool showMsgs, bool alt_slot)
 {
-    if (!you.weapon())
+    ASSERT(!alt_slot || you.has_mutation(MUT_DUAL_WIELDING));
+
+    if (!you.weapon(alt_slot))
         return false;
 
-    item_def& item = *you.weapon();
+    item_def& item = *you.weapon(alt_slot);
+    const auto eq_slot = alt_slot ? EQ_ALT_WEAPON : EQ_WEAPON;
 
     const bool is_weapon = get_item_slot(item) == EQ_WEAPON;
 
     if (is_weapon && !safe_to_remove(item))
         return false;
 
-    unequip_item(EQ_WEAPON, showMsgs);
+    unequip_item(eq_slot, showMsgs);
+
+    if (you.has_mutation(MUT_DUAL_WIELDING) && you.equip[EQ_ALT_WEAPON] >= 0
+        && you.equip[EQ_WEAPON] < 0)
+    {
+        // move to main slot to keep things tidy
+        you.equip[EQ_WEAPON] = you.equip[EQ_ALT_WEAPON];
+        you.equip[EQ_ALT_WEAPON] = -1;
+    }
 
     you.wield_change     = true;
     quiver::set_needs_redraw();

@@ -262,6 +262,9 @@ string item_def::name(description_level_type descrip, bool terse, bool ident,
                     else
                         buff << " (in " << you.hand_name(false) << ")";
                     break;
+                case EQ_ALT_WEAPON:
+                    buff << " (other weapon)";
+                    break;
                 case EQ_CLOAK:
                 case EQ_HELMET:
                 case EQ_GLOVES:

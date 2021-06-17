@@ -76,11 +76,9 @@ melee_attack::melee_attack(actor *attk, actor *defn,
     damage_brand = attacker->damage_brand(attack_number);
     init_attack(SK_UNARMED_COMBAT, attack_number);
     // n.b. !using_weapon() means a clumsy bash
-    if (you.species.is_genus_monster() && !weapon
-                                    && you.monster_instance->has_ghost_brand())
-    {
+    if (!weapon && you.monster_instance->has_ghost_brand())
         damage_brand = you.monster_instance->ghost_brand();
-    }
+
     if (weapon && !using_weapon())
         wpn_skill = SK_FIGHTING;
 
@@ -93,6 +91,7 @@ bool melee_attack::can_reach()
            || flavour_has_reach(attk_flavour)
            || is_projected;
 }
+
 
 bool melee_attack::handle_phase_attempted()
 {
@@ -109,13 +108,17 @@ bool melee_attack::handle_phase_attempted()
     }
 
     // handle all species genus monster secondary attacks as aux attacks if
-    // possible.
+    // possible. Dual wielders have attack numbers set up in sync with their
+    // wield slots though, so use that. (This is in contrast to gyre and
+    // gimble, which uses cleaving.)
+    // TODO: double check this
     if (attacker->is_player()
-        && !you.species.is_genus_monster() && attack_number > 0)
+        && attack_number > 0
+        && !you.species.is_genus_monster()
+        && !you.dual_wielding())
     {
         return false;
     }
-
     // TODO: what about monsters (e.g. eyeballs, curse toe, etc)
     // with no attacks at all? Right now, give them minimally one attack, with
     // a couple of flavorful exceptions based on insubstantiality (ghosts,
@@ -126,14 +129,15 @@ bool melee_attack::handle_phase_attempted()
     // bang into things, even if that's not part of their innate repertoire.
     if (attacker->is_player() && attk_type == AT_NONE)
     {
-        ASSERT(you.species == SP_MONSTER);
+        ASSERT(you.species.is_monster());
         if (attack_number > 0 || you.monster_instance->is_insubstantial())
             return false;
         // keep the type as AT_NONE; there's some special casing later.
     }
 
     if (attacker->is_player() && attack_number > 0 && attk_flavour != AF_CRUSH
-        && you.strength() + you.dex() <= random2(50))
+        && you.strength() + you.dex() <= random2(50)
+        && !you.dual_wielding())
     {
         // treat extra monster attacks like pseudo-aux attacks. I'm not sure I'm
         // a huge fan of this stat mechanic, but let's make things consistent.
@@ -241,7 +245,8 @@ bool melee_attack::handle_phase_attempted()
     {
         // Set delay now that we know the attack won't be cancelled.
         if (!is_riposte
-             && (wu_jian_attack == WU_JIAN_ATTACK_NONE))
+             && (wu_jian_attack == WU_JIAN_ATTACK_NONE)
+             && attack_number < 1)
         {
             you.time_taken = you.attack_delay().roll();
         }
@@ -609,6 +614,7 @@ bool melee_attack::handle_phase_damaged()
 
 bool melee_attack::handle_phase_aux()
 {
+    // TODO: player monsters with aux attack muts?
     if (attacker->is_player()
         && !you.species.is_genus_monster() // use multi-attacks instead
         && !cleaving
@@ -626,7 +632,8 @@ bool melee_attack::handle_phase_aux()
         // Don't print wounds after the first attack with Gyre/Gimble.
         // DUR_CLEAVE and Gyre/Gimble interact poorly together at the moment,
         // so don't try to skip print_wounds in that case.
-        if (!(weapon && is_unrandom_artefact(*weapon, UNRAND_GYRE)
+        if (!you.dual_wielding() &&
+            !(weapon && is_unrandom_artefact(*weapon, UNRAND_GYRE)
               && !you.duration[DUR_CLEAVE]))
         {
             print_wounds(*defender->as_monster());
@@ -1275,6 +1282,11 @@ void melee_attack::player_aux_setup(unarmed_attack_type atk)
  */
 bool melee_attack::player_gets_aux_punch()
 {
+    // dual wielders get a real 2nd attack (possibly unarmed)
+    // TODO: a non 2-armed dual wielder would need some more work here
+    if (you.dual_wielding())
+        return false;
+
     if (!get_form()->can_offhand_punch())
         return false;
 
@@ -2104,7 +2116,7 @@ bool melee_attack::attack_chops_heads(int dam, int dam_type)
 void melee_attack::decapitate(int dam_type)
 {
     // Player hydras don't gain or lose heads.
-    ASSERT(defender->is_monster() || you.species == SP_MONSTER);
+    ASSERT(defender->is_monster() || you.species.is_monster());
 
     const char *verb = nullptr;
 
@@ -2493,7 +2505,7 @@ string melee_attack::mons_attack_verb()
     {
         // monsters with no attack, when turned into player species, get at
         // least something.
-        ASSERT(you.species == SP_MONSTER);
+        ASSERT(you.species.is_monster());
         return "thump";
     }
 
@@ -2651,7 +2663,7 @@ static void _print_resist_messages(actor* defender, int base_damage,
 
 bool melee_attack::mons_attack_effects()
 {
-    if (attacker->is_player() && you.species != SP_MONSTER)
+    if (attacker->is_player() && !you.species.is_monster())
         return true;
 
     // may have died earlier, due to e.g. pain bond

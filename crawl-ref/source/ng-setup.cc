@@ -88,6 +88,12 @@ void newgame_setup_item(item_def &item, int slot)
     {
         you.equip[get_item_slot(item)] = slot;
     }
+    else if (mons_class_wields_two_weapons(you.species) // mut is not yet set up
+        && item.base_type == OBJ_WEAPONS && can_wield(&item, false, false)
+        && you.equip[EQ_ALT_WEAPON] == -1)
+    {
+        you.equip[EQ_ALT_WEAPON] = slot;
+    }
 
     if (item.base_type == OBJ_MISSILES)
         _autopickup_ammo(static_cast<missile_type>(item.sub_type));
